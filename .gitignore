@@ -1,0 +1,63 @@
+# ─── Android ────────────────────────────────────────────────
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Android Studio
+*.orig
+*.class
+*.jar
+*.war
+*.aar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Gradle
+.gradle
+**/build/
+!src/**/build/
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# NDK
+obj/
+*.so
+
+# Signing key — NEVER commit these
+*.jks
+*.keystore
+release-key.*
+
+# ─── PlatformIO / ESP32 ──────────────────────────────────────
+firmware/.pio/
+firmware/**/.pio/
+firmware/**/build/
+firmware/**/.clang_complete
+firmware/**/.gcc-flags.json
+
+# ─── IDE / OS ────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/settings.json
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── DataStore / local prefs ─────────────────────────────────
+*.preferences_pb
+
+# ─── Logs ────────────────────────────────────────────────────
+*.log
