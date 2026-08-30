@@ -1,0 +1,52 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on tags starting with v (e.g., v1.1.0)
+  workflow_dispatch: # Allow manual trigger from the Actions tab
+
+jobs:
+  build-and-release:
+    name: Build APK and Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create a release
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+        
+      - name: Rename APK
+        id: rename
+        run: |
+          # If triggered by a tag, use the tag name. Otherwise, default to 'latest'
+          TAG_NAME=${GITHUB_REF_NAME:-latest}
+          APK_NAME="safelink-${TAG_NAME}.apk"
+          
+          # Move and rename the APK to the root workspace
+          mv app/build/outputs/apk/debug/app-debug.apk $APK_NAME
+          
+          echo "apk_name=$APK_NAME" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SafeLink ${{ steps.rename.outputs.tag_name }}
+          body: "Automated release for SafeLink ${{ steps.rename.outputs.tag_name }}."
+          files: ${{ steps.rename.outputs.apk_name }}
+          # Automatically mark as latest
+          make_latest: true
