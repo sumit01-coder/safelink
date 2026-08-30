@@ -43,10 +43,11 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import com.safelink.app.SafeLinkApplication
 import com.safelink.app.ui.settings.SettingsViewModel
+import com.safelink.app.ui.update.UpdateViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen() {
+fun MainScreen(updateViewModel: UpdateViewModel) {
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -58,6 +59,7 @@ fun MainScreen() {
         factory = SettingsViewModel.provideFactory(application.settingsRepository)
     )
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
+    val updateState by updateViewModel.uiState.collectAsStateWithLifecycle()
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -260,7 +262,7 @@ fun MainScreen() {
                     StatsScreen(devices = uiState.devices)
                 }
                 composable(Screen.Settings.route) {
-                    SettingsScreen()
+                    SettingsScreen(updateViewModel = updateViewModel)
                 }
                 composable(Screen.DeviceDetail.route) { backStackEntry ->
                     val deviceId = backStackEntry.arguments?.getString("deviceId")

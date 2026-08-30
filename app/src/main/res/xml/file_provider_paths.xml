@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Allows sharing APK files from app's cache directory for installation -->
+    <external-cache-path
+        name="apk_downloads"
+        path="updates/" />
+    <cache-path
+        name="apk_internal"
+        path="updates/" />
+</paths>

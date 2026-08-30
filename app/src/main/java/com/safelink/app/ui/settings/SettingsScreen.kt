@@ -1,6 +1,7 @@
 package com.safelink.app.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,11 +24,14 @@ import com.safelink.app.ui.theme.TealAccent
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.safelink.app.SafeLinkApplication
+import com.safelink.app.ui.update.UpdateViewModel
+import com.safelink.app.BuildConfig
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(updateViewModel: UpdateViewModel) {
     val application = LocalContext.current.applicationContext as SafeLinkApplication
     val settingsViewModel: SettingsViewModel = viewModel(
+
         factory = SettingsViewModel.provideFactory(application.settingsRepository)
     )
     val uiState by settingsViewModel.uiState.collectAsState()
@@ -214,7 +218,8 @@ fun SettingsScreen() {
             SettingsNavItem(
                 icon = Icons.Default.Info,
                 title = "App Version",
-                value = "1.0.0"
+                value = "v${BuildConfig.VERSION_NAME}",
+                onClick = {}
             )
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -223,7 +228,18 @@ fun SettingsScreen() {
             SettingsNavItem(
                 icon = Icons.Default.Code,
                 title = "Firmware Protocol",
-                value = "UDP v1"
+                value = "UDP v1",
+                onClick = {}
+            )
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+            )
+            SettingsNavItem(
+                icon = Icons.Default.SystemUpdate,
+                title = "Check for Updates",
+                value = "",
+                onClick = { updateViewModel.checkForUpdateManually() }
             )
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -232,7 +248,8 @@ fun SettingsScreen() {
             SettingsNavItem(
                 icon = Icons.Default.BugReport,
                 title = "Send Feedback",
-                value = ""
+                value = "",
+                onClick = {}
             )
         }
 
@@ -314,11 +331,13 @@ fun SettingsToggleItem(
 fun SettingsNavItem(
     icon: ImageVector,
     title: String,
-    value: String
+    value: String,
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onClick() }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
