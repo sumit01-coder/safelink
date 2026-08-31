@@ -2,13 +2,14 @@ package com.safelink.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.safelink.app.data.discovery.UdpDiscoveryService
+import com.safelink.app.data.discovery.BleDiscoveryService
 import com.safelink.app.data.model.Relay
 import com.safelink.app.data.model.SafeLinkDevice
 import com.safelink.app.data.network.RelayApiService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -19,7 +20,7 @@ data class HomeUiState(
 )
 
 class HomeViewModel : ViewModel() {
-    private val discoveryService = UdpDiscoveryService()
+    private val discoveryService = BleDiscoveryService()
     private val relayApiService  = RelayApiService()
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -31,15 +32,31 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch {
             _uiState.update { it.copy(isDiscovering = true, devices = emptyList()) }
             try {
-                discoveryService.discoverDevices(pairingKey = pairingKey).collect { device ->
-                    // Assign sequential IDs to relays since ESP32 JSON omits them
-                    val deviceWithIds = device.copy(
-                        relays = device.relays.mapIndexed { idx, relay ->
-                            relay.copy(id = idx + 1)
+                discoveryService.discoverDevices(pairingKey = pairingKey).collect { bleDevice ->
+                    // BLE gives us the IP. Now we fetch the full relay status over Wi-Fi
+                    val statusJson = relayApiService.fetchStatus(bleDevice.ip, bleDevice.port)
+                    if (statusJson != null) {
+                        try {
+                            val jsonParser = Json { ignoreUnknownKeys = true }
+                            val fullDevice = jsonParser.decodeFromString<SafeLinkDevice>(statusJson)
+                            
+                            // Assign sequential IDs to relays since ESP32 JSON omits them
+                            val deviceWithIds = fullDevice.copy(
+                                ip = bleDevice.ip,
+                                wifiSignal = bleDevice.wifiSignal,
+                                relays = fullDevice.relays.mapIndexed { idx, relay ->
+                                    relay.copy(id = idx + 1)
+                                }
+                            )
+                            
+                            _uiState.update { state ->
+                                if (state.devices.none { it.deviceId == deviceWithIds.deviceId }) {
+                                    state.copy(devices = state.devices + deviceWithIds)
+                                } else state
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
                         }
-                    )
-                    _uiState.update { state ->
-                        state.copy(devices = state.devices + deviceWithIds)
                     }
                 }
             } catch (e: Exception) {

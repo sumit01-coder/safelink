@@ -23,6 +23,7 @@
 #include <ArduinoJson.h>
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
+#include <NimBLEDevice.h>
 
 // ─────────────────────────────────────────────────────────────
 // USER CONFIGURATION — Edit these before flashing
@@ -32,7 +33,7 @@ static const char* WIFI_PASS   = "YOUR_WIFI_PASSWORD";
 static const char* PAIRING_KEY = "123456";       // Must match the Android App
 static const char* DEVICE_NAME = "Xiao ESP32S3 Hub";
 static const char* HOSTNAME    = "safelink";     // Access via safelink.local
-static const char* FIRMWARE_VER = "1.1.0";
+static const char* FIRMWARE_VER = "1.3.0";
 
 // ─────────────────────────────────────────────────────────────
 // Hardware — GPIO pins to probe for relay modules
@@ -76,6 +77,7 @@ void setupHardware();
 void setupWiFi();
 void setupMDNS();
 void setupOTA();
+void setupBLE();
 void setupHTTP();
 void handleUdpDiscovery();
 void buildStatusJson(char* buf, size_t bufLen);
@@ -350,6 +352,41 @@ void handleUdpDiscovery() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// BLE Advertising Setup
+// ─────────────────────────────────────────────────────────────
+static const char* BLE_SERVICE_UUID = "a07498ca-1088-4361-9c3a-23d9a101fcc4";
+
+void setupBLE() {
+    NimBLEDevice::init(DEVICE_NAME);
+    NimBLEServer *pServer = NimBLEDevice::createServer();
+    NimBLEService *pService = pServer->createService(BLE_SERVICE_UUID);
+    pService->start();
+
+    NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
+    pAdvertising->addServiceUUID(BLE_SERVICE_UUID);
+    
+    // Embed IP address and pairing key in Manufacturer Data
+    // We use a dummy company ID (0xFFFF)
+    std::string mData = "";
+    mData += (char)0xFF; 
+    mData += (char)0xFF;
+    
+    uint32_t ip = WiFi.localIP();
+    mData += (char)(ip & 0xFF);
+    mData += (char)((ip >> 8) & 0xFF);
+    mData += (char)((ip >> 16) & 0xFF);
+    mData += (char)((ip >> 24) & 0xFF);
+    
+    mData += PAIRING_KEY;
+
+    pAdvertising->setManufacturerData(mData);
+    pAdvertising->setScanResponse(true);
+    pAdvertising->start();
+    
+    Serial.println("[OK] BLE Advertising started");
+}
+
+// ─────────────────────────────────────────────────────────────
 // Arduino setup()
 // ─────────────────────────────────────────────────────────────
 void setup() {
@@ -361,6 +398,7 @@ void setup() {
     setupWiFi();
     setupMDNS();
     setupOTA();
+    setupBLE();
 
     udp.begin(UDP_PORT);
     Serial.printf("[OK] UDP listening on port %d\n", UDP_PORT);
