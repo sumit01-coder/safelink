@@ -2,6 +2,10 @@ package com.safelink.app.data.update
 
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.safelink.app.BuildConfig
@@ -44,17 +48,46 @@ class AppUpdateService(private val context: Context) {
     }
 
     /**
+     * Finds an internet-capable network (e.g. cellular) to use when Wi-Fi
+     * has no internet (e.g. when connected to the SafeLink ESP32 hotspot).
+     */
+    private fun getInternetClient(): OkHttpClient {
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        // Find any network that actually has internet (cellular, etc.)
+        val internetNetwork: Network? = connectivityManager.allNetworks.firstOrNull { network ->
+            val caps = connectivityManager.getNetworkCapabilities(network)
+            caps != null &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }
+
+        return OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .apply {
+                // Bind socket to internet-capable network if found
+                if (internetNetwork != null) {
+                    socketFactory(internetNetwork.socketFactory)
+                }
+            }
+            .build()
+    }
+
+    /**
      * Check GitHub Releases API for a newer version.
      * Returns null if the app is already up to date or check fails.
      */
     suspend fun checkForUpdate(): ReleaseInfo? = withContext(Dispatchers.IO) {
         try {
+            val internetClient = getInternetClient()
             val request = Request.Builder()
                 .url(RELEASES_API)
                 .header("Accept", "application/vnd.github+json")
                 .build()
 
-            val response = client.newCall(request).execute()
+            val response = internetClient.newCall(request).execute()
             if (!response.isSuccessful) return@withContext null
 
             val body = response.body?.string() ?: return@withContext null
