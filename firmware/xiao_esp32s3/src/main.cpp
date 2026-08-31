@@ -380,7 +380,7 @@ void setupBLE() {
     mData += PAIRING_KEY;
 
     pAdvertising->setManufacturerData(mData);
-    pAdvertising->setScanResponse(true);
+    pAdvertising->setScanResponseData(NimBLEAdvertisementData());
     pAdvertising->start();
     
     Serial.println("[OK] BLE Advertising started");
