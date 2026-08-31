@@ -54,6 +54,11 @@ fun MainScreen(updateViewModel: UpdateViewModel) {
     val homeViewModel: HomeViewModel = viewModel()
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
 
+    // Auto-start scanning as soon as the ViewModel is ready
+    LaunchedEffect(settingsState.pairingKey) {
+        homeViewModel.startAutoScan(settingsState.pairingKey)
+    }
+
     val application = LocalContext.current.applicationContext as SafeLinkApplication
     val settingsViewModel: SettingsViewModel = viewModel(
         factory = SettingsViewModel.provideFactory(application.settingsRepository)

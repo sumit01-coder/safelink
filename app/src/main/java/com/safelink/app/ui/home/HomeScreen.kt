@@ -177,9 +177,17 @@ fun HomeScreen(
                         CircularProgressIndicator(color = TealAccent)
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            "Scanning network...",
+                            uiState.scanStatusMessage,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "Make sure Bluetooth is ON and your phone\nis connected to the SafeLink Wi-Fi hotspot.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                 }
