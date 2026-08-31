@@ -28,12 +28,16 @@
 // ─────────────────────────────────────────────────────────────
 // USER CONFIGURATION — Edit these before flashing
 // ─────────────────────────────────────────────────────────────
-static const char* WIFI_SSID   = "YOUR_WIFI_SSID";
-static const char* WIFI_PASS   = "YOUR_WIFI_PASSWORD";
-static const char* PAIRING_KEY = "123456";       // Must match the Android App
-static const char* DEVICE_NAME = "Xiao ESP32S3 Hub";
-static const char* HOSTNAME    = "safelink";     // Access via safelink.local
+static const char* AP_SSID      = "SafeLink";        // Hotspot name phones will see
+static const char* AP_PASS      = "safelink123";     // Hotspot password (min 8 chars)
+static const char* PAIRING_KEY  = "123456";          // Must match the Android App
+static const char* DEVICE_NAME  = "Xiao ESP32S3 Hub";
+static const char* HOSTNAME     = "safelink";        // Access via safelink.local
 static const char* FIRMWARE_VER = "1.3.0";
+
+// In AP mode, ESP32 always gets this fixed IP:
+static const IPAddress AP_IP(192, 168, 4, 1);
+static const IPAddress AP_SUBNET(255, 255, 255, 0);
 
 // ─────────────────────────────────────────────────────────────
 // Hardware — GPIO pins to probe for relay modules
@@ -146,26 +150,23 @@ void setupHardware() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// WiFi — connect with timeout
+// WiFi — Start as Access Point (creates its own hotspot)
 // ─────────────────────────────────────────────────────────────
 void setupWiFi() {
-    Serial.printf("Connecting to \"%s\" ", WIFI_SSID);
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    WiFi.mode(WIFI_AP);
+    WiFi.softAPConfig(AP_IP, AP_IP, AP_SUBNET);
+    bool started = WiFi.softAP(AP_SSID, AP_PASS);
 
-    uint32_t start = millis();
-    while (WiFi.status() != WL_CONNECTED) {
-        if (millis() - start > WIFI_TIMEOUT_MS) {
-            Serial.println("\n[ERROR] WiFi timeout! Restarting...");
-            delay(1000);
-            ESP.restart();
-        }
-        delay(500);
-        Serial.print(".");
+    if (started) {
+        Serial.printf("[OK] Hotspot started!\n");
+        Serial.printf("     SSID    : %s\n", AP_SSID);
+        Serial.printf("     Password: %s\n", AP_PASS);
+        Serial.printf("     IP      : %s\n", WiFi.softAPIP().toString().c_str());
+    } else {
+        Serial.println("[ERROR] Failed to start AP! Restarting...");
+        delay(1000);
+        ESP.restart();
     }
-
-    Serial.printf("\n[OK] Connected! IP: %s  RSSI: %d dBm\n",
-                  WiFi.localIP().toString().c_str(), WiFi.RSSI());
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -224,14 +225,14 @@ int findRelayByName(const char* name) {
 // ─────────────────────────────────────────────────────────────
 void buildStatusJson(char* buf, size_t bufLen) {
     StaticJsonDocument<512> doc;
-    doc["deviceId"]   = WiFi.macAddress();
+    doc["deviceId"]   = WiFi.softAPmacAddress();
     doc["deviceName"] = DEVICE_NAME;
-    doc["ip"]         = WiFi.localIP().toString();
+    doc["ip"]         = WiFi.softAPIP().toString();
     doc["port"]       = HTTP_PORT;
     doc["relayCount"] = activeRelayCount;
     doc["firmware"]   = FIRMWARE_VER;
     doc["uptimeSec"]  = millis() / 1000;
-    doc["rssi"]       = WiFi.RSSI();
+    doc["rssi"]       = 0;  // N/A in AP mode
 
     JsonArray relays = doc.createNestedArray("relays");
     for (uint8_t i = 0; i < activeRelayCount; i++) {
@@ -309,15 +310,9 @@ void setupHTTP() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Auto-reconnect if WiFi drops
-// ─────────────────────────────────────────────────────────────
+// Auto-reconnect — not needed in AP mode, but kept as a no-op for loop() compatibility
 void reconnectWiFiIfNeeded() {
-    static uint32_t lastRetry = 0;
-    if (WiFi.status() != WL_CONNECTED && millis() - lastRetry > WIFI_RETRY_MS) {
-        Serial.println("[WIFI] Connection lost. Reconnecting...");
-        WiFi.reconnect();
-        lastRetry = millis();
-    }
+    // In AP mode the ESP32 is the router, it never "disconnects"
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -371,7 +366,7 @@ void setupBLE() {
     mData += (char)0xFF; 
     mData += (char)0xFF;
     
-    uint32_t ip = WiFi.localIP();
+    uint32_t ip = (uint32_t)WiFi.softAPIP();
     mData += (char)(ip & 0xFF);
     mData += (char)((ip >> 8) & 0xFF);
     mData += (char)((ip >> 16) & 0xFF);
