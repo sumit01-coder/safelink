@@ -79,10 +79,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 directJob.await()
                 bleJob.await()
 
-                if (_uiState.value.devices.isNotEmpty()) break
-
-                _uiState.update { it.copy(scanStatusMessage = "Not found. Retrying...") }
-                delay(RETRY_DELAY_MS)
+                // If no devices found yet, show retrying message
+                if (_uiState.value.devices.isEmpty()) {
+                    _uiState.update { it.copy(scanStatusMessage = "Not found. Retrying...") }
+                } else {
+                    _uiState.update { it.copy(scanStatusMessage = "Hub connected!", isDiscovering = false) }
+                }
+                
+                // Keep polling every 3 seconds to catch hot-plugged relays automatically
+                delay(3000)
             }
             _uiState.update {
                 it.copy(
@@ -94,18 +99,23 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Adds a device discovered via direct IP (no second HTTP call needed —
-     * tryDirectConnect already fetched the status via the Wi-Fi socket).
+     * Adds or updates a device discovered via direct IP.
      */
     private fun addDirectDevice(device: SafeLinkDevice) {
-        if (_uiState.value.devices.any { it.ip == device.ip }) return
         val normalized = device.copy(
             relays = device.relays.mapIndexed { idx, r -> r.copy(id = idx + 1) }
         )
         _uiState.update { state ->
-            if (state.devices.none { it.deviceId == normalized.deviceId }) {
+            val existingIndex = state.devices.indexOfFirst { it.deviceId == normalized.deviceId }
+            if (existingIndex >= 0) {
+                // Update existing device (catches hot-plugged relays)
+                val newList = state.devices.toMutableList()
+                newList[existingIndex] = normalized
+                state.copy(devices = newList)
+            } else {
+                // Add new device
                 state.copy(devices = state.devices + normalized)
-            } else state
+            }
         }
     }
 
