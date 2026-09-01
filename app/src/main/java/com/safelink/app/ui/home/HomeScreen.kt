@@ -12,6 +12,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Build
@@ -37,8 +39,11 @@ fun HomeScreen(
     uiState: HomeUiState,
     onDeviceClick: (String) -> Unit,
     onRelayClick: (SafeLinkDevice, Relay) -> Unit,
+    onRelayLongClick: (SafeLinkDevice, Relay) -> Unit = { _, _ -> },
     onRefresh: () -> Unit
 ) {
+    val renameDialogState = remember { mutableStateOf<Pair<SafeLinkDevice, Relay>?>(null) }
+    
     val onlineCount = uiState.devices.count { it.isOnline }
     val totalCount = uiState.devices.size
 

@@ -134,8 +134,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val normalized = namedDevice.copy(
             relays = namedDevice.relays.mapIndexed { idx, r -> r.copy(id = idx + 1) }
         )
-            relays = device.relays.mapIndexed { idx, r -> r.copy(id = idx + 1) }
-        )
         _uiState.update { state ->
             val existingIndex = state.devices.indexOfFirst { it.deviceId == normalized.deviceId }
             if (existingIndex >= 0) {
@@ -163,7 +161,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val normalized = namedDevice.copy(
             ip = bleDevice.ip,
             wifiSignal = bleDevice.wifiSignal,
-            relays = target.relays.mapIndexed { idx, r -> r.copy(id = idx + 1) }
+            relays = namedDevice.relays.mapIndexed { idx, r -> r.copy(id = idx + 1) }
         )
         _uiState.update { state ->
             if (state.devices.none { it.deviceId == normalized.deviceId }) {
@@ -229,8 +227,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun dismissError() {
         _uiState.update { it.copy(error = null) }
     }
-}
-
     fun renameRelay(device: SafeLinkDevice, relayIndex: Int, newName: String) {
         viewModelScope.launch {
             settingsRepo.updateCustomRelayName(device.deviceId, relayIndex, newName)
@@ -254,3 +250,4 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             ShortcutManagerCompat.pushDynamicShortcut(getApplication(), shortcut)
         }
     }
+}
