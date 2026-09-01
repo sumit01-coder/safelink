@@ -28,6 +28,9 @@ class SafeLinkBackgroundService : Service() {
     private val CHANNEL_ID = "SafeLinkForegroundServiceChannel"
     private val NOTIFICATION_ID = 1
     
+    private val ALERT_CHANNEL_ID = "SafeLinkAlertChannel"
+    private val ALERT_NOTIFICATION_ID = 2
+    
     private var isScanning = false
     private val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
     private val scanner = bluetoothAdapter?.bluetoothLeScanner
@@ -121,7 +124,7 @@ class SafeLinkBackgroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(R.mipmap.ic_launcher_round)
@@ -131,18 +134,30 @@ class SafeLinkBackgroundService : Service() {
             .build()
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(NOTIFICATION_ID, notification)
+        manager.notify(ALERT_NOTIFICATION_ID, notification)
     }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Low Priority channel for the persistent background service (no popup, no sound)
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,
                 "SafeLink Background Service",
                 NotificationManager.IMPORTANCE_LOW
             )
+            
+            // High Priority channel for the "Fast Pair" popup alerts (forces Heads-Up display)
+            val alertChannel = NotificationChannel(
+                ALERT_CHANNEL_ID,
+                "SafeLink Device Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications when you are near your SafeLink devices"
+            }
+            
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(serviceChannel)
+            manager?.createNotificationChannel(alertChannel)
         }
     }
 }
