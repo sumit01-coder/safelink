@@ -8,6 +8,7 @@ import com.safelink.app.data.discovery.DirectConnectionService
 import com.safelink.app.data.model.Relay
 import com.safelink.app.data.model.SafeLinkDevice
 import com.safelink.app.data.network.RelayApiService
+import com.safelink.app.data.network.BleRelayClient
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -36,6 +37,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val bleDiscoveryService   = BleDiscoveryService()
     private val directConnectService  = DirectConnectionService(application.applicationContext)
     private val relayApiService       = RelayApiService()
+    private val bleRelayClient        = BleRelayClient(application.applicationContext)
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -194,7 +196,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         applyRelayState(device.deviceId, relay.id, newState)
 
         viewModelScope.launch {
-            val success = relayApiService.toggleRelay(
+            var success = relayApiService.toggleRelay(
                 ip   = device.ip,
                 port = device.port,
                 name = relay.name,
@@ -202,9 +204,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             )
 
             if (!success) {
+                // HTTP Wi-Fi failed. Fallback to BLE!
+                // device.deviceId is the MAC address, relay.id is 1-based but firmware expects 0-based relayIndex
+                success = bleRelayClient.toggleRelay(
+                    macAddress = device.deviceId,
+                    relayIndex = relay.id - 1,
+                    state = newState
+                )
+            }
+
+            if (!success) {
                 // Roll back optimistic update on failure
                 applyRelayState(device.deviceId, relay.id, relay.state)
-                _uiState.update { it.copy(error = "Failed to reach ${device.deviceName}. Is it online?") }
+                _uiState.update { it.copy(error = "Failed to reach ${device.deviceName} via Wi-Fi and Bluetooth. Is it powered on?") }
             }
         }
     }
