@@ -44,8 +44,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Starts auto-scanning on app launch.
      * Runs two discovery strategies in PARALLEL every cycle:
-     *   1. Direct HTTP to 192.168.4.1 (instant when on SafeLink hotspot)
-     *   2. BLE scan with UUID filter (works on same Wi-Fi network)
+     *   1. Direct HTTP to 192.168.4.1 — uses Wi-Fi-bound socket, adds device directly
+     *   2. BLE scan with UUID filter — uses BLE manufacturer data to get IP, then fetches
      * Stops automatically once a device is found. Retries every 3s.
      */
     fun startAutoScan(pairingKey: String) {
@@ -57,22 +57,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 attempt++
                 _uiState.update { it.copy(scanStatusMessage = "Scanning... (attempt $attempt)") }
 
-                // Strategy 1: Direct HTTP probe — fast when on SafeLink hotspot
+                // Strategy 1: Direct HTTP to 192.168.4.1 via Wi-Fi-bound socket
+                // The result from tryDirectConnect() already contains full device data —
+                // we add it directly WITHOUT a second HTTP call (that would use cellular!)
                 val directJob = async {
                     val device = directConnectService.tryDirectConnect()
-                    if (device != null) addDevice(device, device.ip)
+                    if (device != null) addDirectDevice(device)
                 }
 
-                // Strategy 2: BLE scan with 8s timeout
+                // Strategy 2: BLE scan — gets IP from manufacturer data, then fetches status
                 val bleJob = async {
                     withTimeoutOrNull(BLE_SCAN_TIMEOUT_MS) {
                         bleDiscoveryService.discoverDevices(pairingKey = pairingKey).collect { bleDevice ->
-                            addDevice(bleDevice, bleDevice.ip)
+                            addBleDevice(bleDevice)
                         }
                     }
                 }
 
-                // Wait for both to finish (direct is fast, BLE waits 8s)
+                // Wait for both (direct is fast ~1s, BLE waits up to 8s)
                 directJob.await()
                 bleJob.await()
 
@@ -90,31 +92,40 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Fetches full device info over HTTP and adds to state if not already present. */
-    private suspend fun addDevice(bleDevice: SafeLinkDevice, ip: String) {
-        if (_uiState.value.devices.any { it.ip == ip }) return
-        val statusJson = relayApiService.fetchStatus(ip, bleDevice.port)
-        if (statusJson != null) {
-            try {
-                val fullDevice = Json { ignoreUnknownKeys = true }
-                    .decodeFromString<SafeLinkDevice>(statusJson)
-                    .copy(
-                        ip = ip,
-                        wifiSignal = bleDevice.wifiSignal,
-                        relays = run {
-                            (Json { ignoreUnknownKeys = true }
-                                .decodeFromString<SafeLinkDevice>(statusJson)).relays
-                                .mapIndexed { idx, r -> r.copy(id = idx + 1) }
-                        }
-                    )
-                _uiState.update { state ->
-                    if (state.devices.none { it.deviceId == fullDevice.deviceId }) {
-                        state.copy(devices = state.devices + fullDevice)
-                    } else state
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+    /**
+     * Adds a device discovered via direct IP (no second HTTP call needed —
+     * tryDirectConnect already fetched the status via the Wi-Fi socket).
+     */
+    private fun addDirectDevice(device: SafeLinkDevice) {
+        if (_uiState.value.devices.any { it.ip == device.ip }) return
+        val normalized = device.copy(
+            relays = device.relays.mapIndexed { idx, r -> r.copy(id = idx + 1) }
+        )
+        _uiState.update { state ->
+            if (state.devices.none { it.deviceId == normalized.deviceId }) {
+                state.copy(devices = state.devices + normalized)
+            } else state
+        }
+    }
+
+    /**
+     * For BLE-discovered devices: fetches full status over HTTP using the
+     * Wi-Fi-bound socket from DirectConnectionService.
+     */
+    private suspend fun addBleDevice(bleDevice: SafeLinkDevice) {
+        if (_uiState.value.devices.any { it.ip == bleDevice.ip }) return
+        // Re-use directConnectService which has the Wi-Fi-bound socket
+        val fullDevice = directConnectService.fetchStatus(bleDevice.ip)
+        val target = fullDevice ?: bleDevice  // fallback to BLE data if HTTP fails
+        val normalized = target.copy(
+            ip = bleDevice.ip,
+            wifiSignal = bleDevice.wifiSignal,
+            relays = target.relays.mapIndexed { idx, r -> r.copy(id = idx + 1) }
+        )
+        _uiState.update { state ->
+            if (state.devices.none { it.deviceId == normalized.deviceId }) {
+                state.copy(devices = state.devices + normalized)
+            } else state
         }
     }
     /** Manual scan triggered by tapping Refresh — resets device list and re-scans. */

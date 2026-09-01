@@ -69,6 +69,11 @@ class DirectConnectionService(private val context: Context) {
             .build()
     }
 
+    /** Public: fetch device status from a known IP via the Wi-Fi-bound socket. */
+    suspend fun fetchStatus(ip: String): SafeLinkDevice? = withContext(Dispatchers.IO) {
+        fetchDevice(ip, buildWifiClient())
+    }
+
     private fun fetchDevice(ip: String, client: OkHttpClient): SafeLinkDevice? {
         return try {
             val request = Request.Builder()
