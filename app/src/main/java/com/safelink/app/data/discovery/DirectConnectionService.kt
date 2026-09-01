@@ -45,14 +45,17 @@ class DirectConnectionService(private val context: Context) {
         var socket: DatagramSocket? = null
         try {
             socket = DatagramSocket()
-            socket.broadcast = true
+            if (wifiNetwork != null) {
+                wifiNetwork.bindSocket(socket)
+            }
             socket.soTimeout = 3000 // 3 seconds wait for response
 
             val message = "SAFELINK_DISCOVER".toByteArray()
-            val broadcastAddress = InetAddress.getByName("255.255.255.255")
-            val packet = DatagramPacket(message, message.size, broadcastAddress, 8888)
+            // Unicast directly to the ESP32 to bypass broadcast ENETUNREACH routing errors
+            val targetAddress = InetAddress.getByName("192.168.4.1")
+            val packet = DatagramPacket(message, message.size, targetAddress, 8888)
             
-            // Send broadcast
+            // Send UDP request
             socket.send(packet)
 
             // Wait for response
@@ -64,7 +67,7 @@ class DirectConnectionService(private val context: Context) {
             val responseText = String(receivePacket.data, 0, receivePacket.length)
             
             // The ESP32 returns the same JSON blob via UDP as it does via HTTP
-            return@withContext json.decodeFromString<SafeLinkDevice>(responseText).copy(ip = receivePacket.address.hostAddress ?: "192.168.4.1")
+            return@withContext json.decodeFromString<SafeLinkDevice>(responseText).copy(ip = "192.168.4.1")
 
         } catch (e: SocketTimeoutException) {
             lastError = "UDP Timeout"
