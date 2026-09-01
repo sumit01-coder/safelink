@@ -54,10 +54,7 @@ fun MainScreen(updateViewModel: UpdateViewModel) {
     val homeViewModel: HomeViewModel = viewModel()
     val uiState by homeViewModel.uiState.collectAsStateWithLifecycle()
 
-    // Auto-start scanning as soon as the ViewModel is ready
-    LaunchedEffect(settingsState.pairingKey) {
-        homeViewModel.startAutoScan(settingsState.pairingKey)
-    }
+
 
     val application = LocalContext.current.applicationContext as SafeLinkApplication
     val settingsViewModel: SettingsViewModel = viewModel(
@@ -65,6 +62,11 @@ fun MainScreen(updateViewModel: UpdateViewModel) {
     )
     val settingsState by settingsViewModel.uiState.collectAsStateWithLifecycle()
     val updateState by updateViewModel.uiState.collectAsStateWithLifecycle()
+
+    // Auto-start scanning once settingsState is available
+    LaunchedEffect(settingsState.pairingKey) {
+        homeViewModel.startAutoScan(settingsState.pairingKey)
+    }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
