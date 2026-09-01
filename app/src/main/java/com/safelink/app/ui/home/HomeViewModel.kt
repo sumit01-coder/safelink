@@ -60,8 +60,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 // Strategy 1: Direct HTTP to 192.168.4.1 via Wi-Fi-bound socket
                 val directJob = async {
                     val hasWifi = directConnectService.hasWifiNetwork()
-                    _uiState.update { it.copy(scanStatusMessage = "Scanning... (attempt $attempt, wifi=$hasWifi)") }
                     val device = directConnectService.tryDirectConnect()
+                    val err = directConnectService.lastError ?: ""
+                    _uiState.update { it.copy(scanStatusMessage = "Scanning... (wifi=$hasWifi) $err") }
                     if (device != null) addDirectDevice(device)
                 }
 

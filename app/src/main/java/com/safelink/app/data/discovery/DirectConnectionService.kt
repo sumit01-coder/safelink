@@ -23,6 +23,8 @@ import java.net.URL
 class DirectConnectionService(private val context: Context) {
 
     private val json = Json { ignoreUnknownKeys = true }
+    var lastError: String? = null
+        private set
 
     /**
      * Tries candidate IPs over the Wi-Fi network (bypassing Android's
@@ -36,6 +38,7 @@ class DirectConnectionService(private val context: Context) {
             "192.168.0.1"
         )
         val wifiNetwork = getWifiNetwork()
+        lastError = null
         for (ip in candidateIps) {
             val device = fetchDevice(ip, wifiNetwork)
             if (device != null) return@withContext device
@@ -80,10 +83,12 @@ class DirectConnectionService(private val context: Context) {
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
                 json.decodeFromString<SafeLinkDevice>(body).copy(ip = ip)
             } else {
+                lastError = "HTTP $responseCode"
                 Log.e("DirectConnect", "Failed to fetch from $ip: HTTP $responseCode")
                 null
             }
         } catch (e: Exception) {
+            lastError = e.javaClass.simpleName + ": " + e.message
             Log.e("DirectConnect", "Exception fetching from $ip: ${e.message}")
             null
         }
