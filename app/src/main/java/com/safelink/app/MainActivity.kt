@@ -51,23 +51,33 @@ class MainActivity : ComponentActivity() {
             SafeLinkTheme(darkTheme = settingsState.darkModeEnabled) {
                 
                 val blePermissions = rememberMultiplePermissionsState(
-                    permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        listOf(
-                            Manifest.permission.BLUETOOTH_CONNECT,
-                            Manifest.permission.BLUETOOTH_SCAN,
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                        )
-                    } else {
-                        listOf(
-                            Manifest.permission.ACCESS_FINE_LOCATION,
-                            Manifest.permission.ACCESS_COARSE_LOCATION
-                        )
+                    permissions = mutableListOf<String>().apply {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            add(Manifest.permission.BLUETOOTH_CONNECT)
+                            add(Manifest.permission.BLUETOOTH_SCAN)
+                            add(Manifest.permission.ACCESS_FINE_LOCATION)
+                        } else {
+                            add(Manifest.permission.ACCESS_FINE_LOCATION)
+                            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        }
+                        if (Build.VERSION.SDK_INT >= 33) {
+                            add(Manifest.permission.POST_NOTIFICATIONS)
+                        }
                     }
                 )
                 
-                LaunchedEffect(Unit) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                LaunchedEffect(blePermissions.allPermissionsGranted) {
                     if (!blePermissions.allPermissionsGranted) {
                         blePermissions.launchMultiplePermissionRequest()
+                    } else {
+                        // Start Background Notification Service
+                        val serviceIntent = Intent(context, com.safelink.app.data.discovery.SafeLinkBackgroundService::class.java)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            context.startForegroundService(serviceIntent)
+                        } else {
+                            context.startService(serviceIntent)
+                        }
                     }
                 }
 

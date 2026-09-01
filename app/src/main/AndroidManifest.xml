@@ -11,6 +11,12 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
         
+    
+    <!-- Background Service Permissions -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <!-- BLE Discovery Permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -60,6 +66,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_provider_paths" />
         </provider>
+    
+        <service
+            android:name=".data.discovery.SafeLinkBackgroundService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
     </application>
 
 </manifest>
