@@ -4,13 +4,13 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.util.Log
 import com.safelink.app.data.model.SafeLinkDevice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import java.util.concurrent.TimeUnit
+import java.net.HttpURLConnection
+import java.net.URL
 
 /**
  * Direct IP discovery for when the phone is connected to the SafeLink AP hotspot.
@@ -18,14 +18,14 @@ import java.util.concurrent.TimeUnit
  *
  * KEY FIX: Android 10+ routes all traffic through cellular when a Wi-Fi network
  * has no internet ("Connected without internet"). We must explicitly bind the
- * HTTP client to the Wi-Fi network socket to reach 192.168.4.1.
+ * HTTP request to the Wi-Fi network to reach 192.168.4.1.
  */
 class DirectConnectionService(private val context: Context) {
 
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
-     * Tries candidate IPs over the Wi-Fi network socket (bypassing Android's
+     * Tries candidate IPs over the Wi-Fi network (bypassing Android's
      * automatic cellular routing for "no internet" Wi-Fi networks).
      */
     suspend fun tryDirectConnect(): SafeLinkDevice? = withContext(Dispatchers.IO) {
@@ -35,58 +35,55 @@ class DirectConnectionService(private val context: Context) {
             "192.168.1.1",
             "192.168.0.1"
         )
-        // Build a client that is FORCED to use the Wi-Fi interface
-        val wifiClient = buildWifiClient()
+        val wifiNetwork = getWifiNetwork()
         for (ip in candidateIps) {
-            val device = fetchDevice(ip, wifiClient)
+            val device = fetchDevice(ip, wifiNetwork)
             if (device != null) return@withContext device
         }
         null
     }
 
-    /**
-     * Creates an OkHttpClient whose socket is bound to the active Wi-Fi network.
-     * This forces traffic through Wi-Fi even when Android would normally prefer cellular.
-     */
-    private fun buildWifiClient(): OkHttpClient {
+    /** Public: fetch device status from a known IP via the Wi-Fi network. */
+    suspend fun fetchStatus(ip: String): SafeLinkDevice? = withContext(Dispatchers.IO) {
+        fetchDevice(ip, getWifiNetwork())
+    }
+
+    private fun getWifiNetwork(): Network? {
         val connectivityManager =
             context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-
-        val wifiNetwork: Network? = connectivityManager.allNetworks.firstOrNull { network ->
+        return connectivityManager.allNetworks.firstOrNull { network ->
             val caps = connectivityManager.getNetworkCapabilities(network) ?: return@firstOrNull false
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
         }
-
-        return OkHttpClient.Builder()
-            .connectTimeout(3, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .apply {
-                if (wifiNetwork != null) {
-                    // Bind socket to the Wi-Fi interface regardless of internet availability
-                    socketFactory(wifiNetwork.socketFactory)
-                }
-            }
-            .build()
     }
 
-    /** Public: fetch device status from a known IP via the Wi-Fi-bound socket. */
-    suspend fun fetchStatus(ip: String): SafeLinkDevice? = withContext(Dispatchers.IO) {
-        fetchDevice(ip, buildWifiClient())
-    }
-
-    private fun fetchDevice(ip: String, client: OkHttpClient): SafeLinkDevice? {
+    private fun fetchDevice(ip: String, wifiNetwork: Network?): SafeLinkDevice? {
         return try {
-            val request = Request.Builder()
-                .url("http://$ip:80/api/status")
-                .get()
-                .build()
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return null
-            val body = response.body?.string() ?: return null
-            json.decodeFromString<SafeLinkDevice>(body).copy(ip = ip)
+            val url = URL("http://$ip:80/api/status")
+            val connection = if (wifiNetwork != null) {
+                // Canonical Android way to force a connection over a specific Network
+                wifiNetwork.openConnection(url) as HttpURLConnection
+            } else {
+                url.openConnection() as HttpURLConnection
+            }
+            
+            connection.connectTimeout = 3000
+            connection.readTimeout = 5000
+            connection.requestMethod = "GET"
+            
+            val responseCode = connection.responseCode
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                json.decodeFromString<SafeLinkDevice>(body).copy(ip = ip)
+            } else {
+                Log.e("DirectConnect", "Failed to fetch from $ip: HTTP $responseCode")
+                null
+            }
         } catch (e: Exception) {
+            Log.e("DirectConnect", "Exception fetching from $ip: ${e.message}")
             null
         }
     }
 }
+
 
