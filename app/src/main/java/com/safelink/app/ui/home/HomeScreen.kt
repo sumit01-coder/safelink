@@ -10,6 +10,8 @@ import androidx.compose.material.icons.filled.DevicesOther
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.os.Build
@@ -246,7 +248,8 @@ fun HomeScreen(
                     DeviceCard(
                         device = device,
                         onClick = { onDeviceClick(device.ip) },
-                        onRelayClick = { relay -> onRelayClick(device, relay) }
+                        onRelayClick = { relay -> onRelayClick(device, relay) },
+                        onRelayLongClick = { relay -> renameDialogState.value = Pair(device, relay) }
                     )
                 }
             }
@@ -254,4 +257,34 @@ fun HomeScreen(
 
         item { Spacer(modifier = Modifier.height(16.dp)) }
     }
+
+        renameDialogState.value?.let { (device, relay) ->
+            var newName by remember { mutableStateOf(relay.name) }
+            AlertDialog(
+                onDismissRequest = { renameDialogState.value = null },
+                title = { Text("Rename Relay") },
+                text = {
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        label = { Text("New Name") },
+                        singleLine = true
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        onRelayLongClick(device, relay.copy(name = newName))
+                        renameDialogState.value = null
+                    }) {
+                        Text("Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { renameDialogState.value = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
 }

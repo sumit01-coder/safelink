@@ -18,6 +18,12 @@ import kotlinx.serialization.json.Json
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import android.content.Intent
+import android.net.Uri
+import com.safelink.app.SafeLinkApplication
+import kotlinx.coroutines.flow.first
 
 data class HomeUiState(
     val devices: List<SafeLinkDevice> = emptyList(),
@@ -35,6 +41,28 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     private var scanJob: Job? = null
+
+    private val settingsRepo = (application as SafeLinkApplication).settingsRepository
+    private var currentCustomNames: Map<String, String> = emptyMap()
+
+    init {
+        viewModelScope.launch {
+            settingsRepo.settingsFlow.collect { state ->
+                currentCustomNames = state.customRelayNames
+                // Refresh UI with new names
+                _uiState.update { state ->
+                    state.copy(devices = state.devices.map { applyCustomNames(it) })
+                }
+            }
+        }
+    }
+
+    private fun applyCustomNames(device: SafeLinkDevice): SafeLinkDevice {
+        return device.copy(relays = device.relays.map { r ->
+            val customName = currentCustomNames["${device.deviceId}_${r.id}"]
+            if (customName != null) r.copy(name = customName) else r
+        })
+    }
 
     companion object {
         private const val BLE_SCAN_TIMEOUT_MS = 8_000L  // 8 seconds per scan attempt
@@ -102,7 +130,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
      * Adds or updates a device discovered via direct IP.
      */
     private fun addDirectDevice(device: SafeLinkDevice) {
-        val normalized = device.copy(
+        val namedDevice = applyCustomNames(device)
+        val normalized = namedDevice.copy(
+            relays = namedDevice.relays.mapIndexed { idx, r -> r.copy(id = idx + 1) }
+        )
             relays = device.relays.mapIndexed { idx, r -> r.copy(id = idx + 1) }
         )
         _uiState.update { state ->
@@ -128,7 +159,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // Re-use directConnectService which has the Wi-Fi-bound socket
         val fullDevice = directConnectService.fetchStatus(bleDevice.ip)
         val target = fullDevice ?: bleDevice  // fallback to BLE data if HTTP fails
-        val normalized = target.copy(
+        val namedDevice = applyCustomNames(target)
+        val normalized = namedDevice.copy(
             ip = bleDevice.ip,
             wifiSignal = bleDevice.wifiSignal,
             relays = target.relays.mapIndexed { idx, r -> r.copy(id = idx + 1) }
@@ -198,3 +230,27 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(error = null) }
     }
 }
+
+    fun renameRelay(device: SafeLinkDevice, relayIndex: Int, newName: String) {
+        viewModelScope.launch {
+            settingsRepo.updateCustomRelayName(device.deviceId, relayIndex, newName)
+            
+            // Push Dynamic Shortcut to Google Assistant
+            val shortcutId = "${device.deviceId}_$relayIndex"
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("safelink://toggle?light=$relayIndex&state=on"))
+            intent.setPackage(getApplication<Application>().packageName)
+            
+            val shortcut = ShortcutInfoCompat.Builder(getApplication(), shortcutId)
+                .setShortLabel("Turn on $newName")
+                .setLongLabel("Turn on $newName on SafeLink")
+                .setIntent(intent)
+                .addCapabilityBinding(
+                    "actions.intent.OPEN_APP_FEATURE",
+                    "feature",
+                    listOf(newName)
+                )
+                .build()
+                
+            ShortcutManagerCompat.pushDynamicShortcut(getApplication(), shortcut)
+        }
+    }

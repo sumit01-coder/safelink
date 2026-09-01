@@ -19,7 +19,8 @@ data class SettingsState(
     val notificationsEnabled: Boolean = true,
     val darkModeEnabled: Boolean = false,
     val hapticFeedbackEnabled: Boolean = true,
-    val pairingKey: String = "123456"
+    val pairingKey: String = "123456",
+    val customRelayNames: Map<String, String> = emptyMap()
 )
 
 class SettingsRepository(private val dataStore: DataStore<Preferences>) {
@@ -29,6 +30,7 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
         val DARK_MODE = booleanPreferencesKey("dark_mode_enabled")
         val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback_enabled")
         val PAIRING_KEY = stringPreferencesKey("pairing_key")
+        val CUSTOM_RELAY_NAMES = stringPreferencesKey("custom_relay_names")
     }
 
     val settingsFlow: Flow<SettingsState> = dataStore.data
@@ -44,8 +46,33 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
             val darkMode = preferences[PreferencesKeys.DARK_MODE] ?: false
             val hapticFeedback = preferences[PreferencesKeys.HAPTIC_FEEDBACK] ?: true
             val pairingKey = preferences[PreferencesKeys.PAIRING_KEY] ?: "123456"
-            SettingsState(notifications, darkMode, hapticFeedback, pairingKey)
+            val customNamesJson = preferences[PreferencesKeys.CUSTOM_RELAY_NAMES] ?: "{}"
+            val customNamesMap = parseJsonToMap(customNamesJson)
+            SettingsState(notifications, darkMode, hapticFeedback, pairingKey, customNamesMap)
         }
+
+    private fun parseJsonToMap(jsonString: String): Map<String, String> {
+        return try {
+            val jsonObject = org.json.JSONObject(jsonString)
+            val map = mutableMapOf<String, String>()
+            val keys = jsonObject.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                map[key] = jsonObject.getString(key)
+            }
+            map
+        } catch (e: Exception) {
+            emptyMap()
+        }
+    }
+
+    private fun mapToJson(map: Map<String, String>): String {
+        val jsonObject = org.json.JSONObject()
+        for ((key, value) in map) {
+            jsonObject.put(key, value)
+        }
+        return jsonObject.toString()
+    }
 
     suspend fun updateNotifications(enabled: Boolean) {
         dataStore.edit { preferences ->
@@ -68,6 +95,16 @@ class SettingsRepository(private val dataStore: DataStore<Preferences>) {
     suspend fun updatePairingKey(key: String) {
         dataStore.edit { preferences ->
             preferences[PreferencesKeys.PAIRING_KEY] = key
+        }
+    }
+
+    suspend fun updateCustomRelayName(deviceId: String, relayIndex: Int, newName: String) {
+        dataStore.edit { preferences ->
+            val jsonString = preferences[PreferencesKeys.CUSTOM_RELAY_NAMES] ?: "{}"
+            val map = parseJsonToMap(jsonString).toMutableMap()
+            val key = "${deviceId}_${relayIndex}"
+            map[key] = newName
+            preferences[PreferencesKeys.CUSTOM_RELAY_NAMES] = mapToJson(map)
         }
     }
 }

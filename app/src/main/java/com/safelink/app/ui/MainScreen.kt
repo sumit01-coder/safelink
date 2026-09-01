@@ -259,6 +259,7 @@ fun MainScreen(updateViewModel: UpdateViewModel) {
                             navController.navigate(Screen.DeviceDetail.createRoute(deviceId))
                         },
                         onRelayClick = { device, relay -> homeViewModel.toggleRelay(device, relay) },
+                        onRelayLongClick = { device, relay -> homeViewModel.renameRelay(device, relay.id, relay.name) },
                         onRefresh = { homeViewModel.discoverDevices(settingsState.pairingKey) }
                     )
                 }

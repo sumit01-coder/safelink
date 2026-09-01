@@ -3,6 +3,8 @@ package com.safelink.app.ui.components
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,7 +32,8 @@ fun DeviceCard(
     device: SafeLinkDevice,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    onRelayClick: (Relay) -> Unit
+    onRelayClick: (Relay) -> Unit,
+    onRelayLongClick: ((Relay) -> Unit)? = null
 ) {
     Card(
         modifier = modifier
@@ -147,7 +150,8 @@ fun DeviceCard(
                         RelayQuickControl(
                             relay = relay,
                             modifier = Modifier.weight(1f),
-                            onClick = { onRelayClick(relay) }
+                            onClick = { onRelayClick(relay) },
+                            onLongClick = { onRelayLongClick?.invoke(relay) }
                         )
                     }
                 }
@@ -156,11 +160,13 @@ fun DeviceCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun RelayQuickControl(
     relay: Relay,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     val isMainAction = relay.state
 
@@ -181,11 +187,13 @@ fun RelayQuickControl(
     )
 
     Card(
-        modifier = modifier.height(100.dp),
         shape = RoundedCornerShape(18.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isMainAction) 6.dp else 0.dp),
         colors = CardDefaults.cardColors(containerColor = bgColor),
-        onClick = onClick
+        modifier = modifier.height(100.dp).combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
     ) {
         Column(
             modifier = Modifier

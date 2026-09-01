@@ -30,12 +30,14 @@ class RelayApiService {
     suspend fun toggleRelay(
         ip: String,
         port: Int = 80,
-        name: String,
+        name: String? = null,
+        relayIndex: Int? = null,
         state: Boolean? = null
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             val bodyBuilder = FormBody.Builder()
-                .add("relayName", name)
+            if (name != null) bodyBuilder.add("relayName", name)
+            if (relayIndex != null) bodyBuilder.add("relayIndex", relayIndex.toString())
             if (state != null) {
                 bodyBuilder.add("state", if (state) "1" else "0")
             }

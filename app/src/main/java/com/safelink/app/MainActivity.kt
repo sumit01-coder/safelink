@@ -87,7 +87,8 @@ class MainActivity : ComponentActivity() {
                 
                 if (lightStr != null && stateStr != null) {
                     val state = stateStr == "on"
-                    val relayName = "Light $lightStr"
+                    val relayIndex = lightStr.toIntOrNull()
+                    val relayName = "Relay $lightStr" // Just for Toast
                     
                     Toast.makeText(this, "Assistant: Turning $stateStr $relayName...", Toast.LENGTH_SHORT).show()
                     
@@ -98,12 +99,12 @@ class MainActivity : ComponentActivity() {
                             val pairingKey = settingsRepo.settingsFlow.first().pairingKey
                             
                             val device = directConnectService.tryDirectConnect(pairingKey)
-                            if (device != null) {
+                            if (device != null && relayIndex != null) {
                                 val api = RelayApiService()
-                                api.toggleRelay(device.ip, relayName, state)
+                                api.toggleRelay(ip = device.ip, relayIndex = relayIndex, state = state)
                                 Toast.makeText(this@MainActivity, "Success: $relayName is $stateStr", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(this@MainActivity, "Failed: Not connected to SafeLink Wi-Fi", Toast.LENGTH_LONG).show()
+                                Toast.makeText(this@MainActivity, "Failed: Not connected to SafeLink Wi-Fi or invalid relay", Toast.LENGTH_LONG).show()
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
