@@ -33,7 +33,7 @@ static const char* AP_PASS      = "safelink123";     // Hotspot password (min 8 
 static const char* PAIRING_KEY  = "123456";          // Must match the Android App
 static const char* DEVICE_NAME  = "Xiao ESP32S3 Hub";
 static const char* HOSTNAME     = "safelink";        // Access via safelink.local
-static const char* FIRMWARE_VER = "1.3.0";
+static const char* FIRMWARE_VER = "1.4.0";
 
 // In AP mode, ESP32 always gets this fixed IP:
 static const IPAddress AP_IP(192, 168, 4, 1);
@@ -167,7 +167,28 @@ void setupWiFi() {
         delay(1000);
         ESP.restart();
     }
+
+    // Log when a device connects / disconnects
+    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+        uint8_t* mac = info.wifi_ap_staconnected.mac;
+        Serial.printf("[AP] Client CONNECTED   MAC: %02X:%02X:%02X:%02X:%02X:%02X  (Clients: %d)\n",
+                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+                      WiFi.softAPgetStationNum());
+    }, ARDUINO_EVENT_WIFI_AP_STACONNECTED);
+
+    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+        uint8_t* mac = info.wifi_ap_stadisconnected.mac;
+        Serial.printf("[AP] Client DISCONNECTED MAC: %02X:%02X:%02X:%02X:%02X:%02X  (Clients: %d)\n",
+                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+                      WiFi.softAPgetStationNum());
+    }, ARDUINO_EVENT_WIFI_AP_STADISCONNECTED);
+
+    WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+        IPAddress ip(info.wifi_ap_staipassigned.ip.addr);
+        Serial.printf("[AP] Client got IP      : %s  → Connect app now!\n", ip.toString().c_str());
+    }, ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED);
 }
+
 
 // ─────────────────────────────────────────────────────────────
 // mDNS — advertise as "safelink.local"
@@ -252,7 +273,11 @@ void setupHTTP() {
     server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* req) {
         char buf[512];
         buildStatusJson(buf, sizeof(buf));
-        req->send(200, "application/json", buf);
+        AsyncWebServerResponse* res = req->beginResponse(200, "application/json", buf);
+        res->addHeader("Access-Control-Allow-Origin", "*");
+        res->addHeader("Cache-Control", "no-cache");
+        req->send(res);
+        Serial.printf("[HTTP] GET /api/status from %s\n", req->client()->remoteIP().toString().c_str());
     });
 
     // POST /api/relay/toggle — toggle relay by name or index
@@ -410,4 +435,16 @@ void loop() {
     reconnectWiFiIfNeeded();
     ArduinoOTA.handle();
     handleUdpDiscovery();
+
+    // Every 10 seconds, print how many clients are connected
+    static uint32_t lastClientLog = 0;
+    if (millis() - lastClientLog > 10000) {
+        lastClientLog = millis();
+        int n = WiFi.softAPgetStationNum();
+        if (n > 0) {
+            Serial.printf("[AP] %d client(s) connected to SafeLink hotspot\n", n);
+        } else {
+            Serial.println("[AP] Waiting for phone to connect to SafeLink Wi-Fi...");
+        }
+    }
 }
