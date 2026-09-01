@@ -36,7 +36,7 @@ static const char* AP_PASS      = "safelink123";     // Hotspot password (min 8 
 static const char* PAIRING_KEY  = "123456";          // Must match the Android App
 static const char* DEVICE_NAME  = "Xiao ESP32S3 Hub";
 static const char* HOSTNAME     = "safelink";        // Access via safelink.local
-static const char* FIRMWARE_VER = "1.4.2";
+static const char* FIRMWARE_VER = "1.4.3";
 
 // In AP mode, ESP32 always gets this fixed IP:
 static const IPAddress AP_IP(192, 168, 4, 1);
@@ -182,7 +182,10 @@ void setupHardware() {
 void setupWiFi() {
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(AP_IP, AP_IP, AP_SUBNET);
-    bool started = WiFi.softAP(AP_SSID, AP_PASS);
+    // Force Tx Power to MAX (19.5dBm or 20dBm for stability)
+    WiFi.setTxPower(WIFI_POWER_19_5dBm);
+    // Start AP on channel 6 (less congested), max 4 connections, not hidden
+    bool started = WiFi.softAP(AP_SSID, AP_PASS, 6, 0, 4);
 
     if (started) {
         Serial.printf("[OK] Hotspot started!\n");
@@ -437,6 +440,11 @@ void setupBLE() {
 
     pAdvertising->setManufacturerData(mData);
     pAdvertising->setScanResponseData(NimBLEAdvertisementData());
+    
+    // Aggressive advertising intervals for rapid discovery (0x20 = 20ms, 0x40 = 40ms)
+    pAdvertising->setMinInterval(0x20);
+    pAdvertising->setMaxInterval(0x40);
+    
     pAdvertising->start();
     
     Serial.println("[OK] BLE Advertising started");
