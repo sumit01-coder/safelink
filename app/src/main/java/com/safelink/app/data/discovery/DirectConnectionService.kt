@@ -9,7 +9,11 @@ import com.safelink.app.data.model.SafeLinkDevice
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.HttpURLConnection
+import java.net.InetAddress
+import java.net.SocketTimeoutException
 import java.net.URL
 
 /**
@@ -31,14 +35,54 @@ class DirectConnectionService(private val context: Context) {
      * automatic cellular routing for "no internet" Wi-Fi networks).
      */
     suspend fun tryDirectConnect(): SafeLinkDevice? = withContext(Dispatchers.IO) {
-        val candidateIps = listOf("192.168.4.1")
-        val wifiNetwork = getWifiNetwork()
         lastError = null
-        for (ip in candidateIps) {
-            val device = fetchDevice(ip, wifiNetwork)
-            if (device != null) return@withContext device
+        val wifiNetwork = getWifiNetwork()
+        if (wifiNetwork != null) {
+            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            connectivityManager.bindProcessToNetwork(wifiNetwork)
         }
-        null
+
+        var socket: DatagramSocket? = null
+        try {
+            socket = DatagramSocket()
+            socket.broadcast = true
+            socket.soTimeout = 3000 // 3 seconds wait for response
+
+            val message = "SAFELINK_DISCOVER".toByteArray()
+            val broadcastAddress = InetAddress.getByName("255.255.255.255")
+            val packet = DatagramPacket(message, message.size, broadcastAddress, 8888)
+            
+            // Send broadcast
+            socket.send(packet)
+
+            // Wait for response
+            val receiveBuffer = ByteArray(1024)
+            val receivePacket = DatagramPacket(receiveBuffer, receiveBuffer.size)
+            
+            socket.receive(receivePacket)
+            
+            val responseText = String(receivePacket.data, 0, receivePacket.length)
+            
+            // The ESP32 returns the same JSON blob via UDP as it does via HTTP
+            return@withContext json.decodeFromString<SafeLinkDevice>(responseText).copy(ip = receivePacket.address.hostAddress ?: "192.168.4.1")
+
+        } catch (e: SocketTimeoutException) {
+            lastError = "UDP Timeout"
+            Log.e("DirectConnect", "UDP Timeout waiting for ESP32")
+        } catch (e: Exception) {
+            lastError = e.javaClass.simpleName + ": " + e.message
+            Log.e("DirectConnect", "UDP Error: ${e.message}")
+        } finally {
+            socket?.close()
+            if (wifiNetwork != null) {
+                val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                connectivityManager.bindProcessToNetwork(null)
+            }
+        }
+        
+        // Fallback to direct HTTP if UDP fails
+        val fallbackIp = "192.168.4.1"
+        return@withContext fetchDevice(fallbackIp, wifiNetwork)
     }
 
     /** Public: fetch device status from a known IP via the Wi-Fi network. */
