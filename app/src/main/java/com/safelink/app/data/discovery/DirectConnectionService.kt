@@ -34,9 +34,27 @@ class DirectConnectionService(private val context: Context) {
      * Tries candidate IPs over the Wi-Fi network (bypassing Android's
      * automatic cellular routing for "no internet" Wi-Fi networks).
      */
+    private var boundNetwork: Network? = null
+    
+    init {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val request = android.net.NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
+            
+        connectivityManager.requestNetwork(request, object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                boundNetwork = network
+            }
+            override fun onLost(network: Network) {
+                if (boundNetwork == network) boundNetwork = null
+            }
+        })
+    }
+
     suspend fun tryDirectConnect(): SafeLinkDevice? = withContext(Dispatchers.IO) {
         lastError = null
-        val wifiNetwork = getWifiNetwork()
+        val wifiNetwork = boundNetwork ?: getWifiNetwork()
         if (wifiNetwork != null) {
             val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             connectivityManager.bindProcessToNetwork(wifiNetwork)
