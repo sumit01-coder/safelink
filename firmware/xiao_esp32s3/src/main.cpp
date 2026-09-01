@@ -24,6 +24,9 @@
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
 #include <NimBLEDevice.h>
+#include <Preferences.h>
+
+Preferences preferences;
 
 // ─────────────────────────────────────────────────────────────
 // USER CONFIGURATION — Edit these before flashing
@@ -33,7 +36,7 @@ static const char* AP_PASS      = "safelink123";     // Hotspot password (min 8 
 static const char* PAIRING_KEY  = "123456";          // Must match the Android App
 static const char* DEVICE_NAME  = "Xiao ESP32S3 Hub";
 static const char* HOSTNAME     = "safelink";        // Access via safelink.local
-static const char* FIRMWARE_VER = "1.4.1";
+static const char* FIRMWARE_VER = "1.4.2";
 
 // In AP mode, ESP32 always gets this fixed IP:
 static const IPAddress AP_IP(192, 168, 4, 1);
@@ -147,11 +150,20 @@ void setupHardware() {
             strncpy(activeRelays[idx].name, RELAY_NAMES[idx], sizeof(activeRelays[idx].name) - 1);
             activeRelays[idx].name[sizeof(activeRelays[idx].name) - 1] = '\0';
 
-            // Switch to output and ensure relay starts in OFF position
-            pinMode(pin, OUTPUT);
-            digitalWrite(pin, LOW);
+            // Restore state from Preferences
+            preferences.begin("safelink", false);
+            char keyName[16];
+            snprintf(keyName, sizeof(keyName), "pin_%d", pin);
+            bool savedState = preferences.getBool(keyName, false);
+            preferences.end();
+            
+            activeRelays[idx].state = savedState;
 
-            Serial.printf("  [FOUND] Pin D%d → %s (votes: %u/%u)\n", i, activeRelays[idx].name, highUnderPulldown, SAMPLES_PER_PIN);
+            // Switch to output and ensure relay uses Active-Low logic (HIGH = OFF, LOW = ON)
+            pinMode(pin, OUTPUT);
+            digitalWrite(pin, savedState ? LOW : HIGH);
+
+            Serial.printf("  [FOUND] Pin D%d → %s (votes: %u/%u) [Restored: %s]\n", i, activeRelays[idx].name, highUnderPulldown, SAMPLES_PER_PIN, savedState ? "ON" : "OFF");
             activeRelayCount++;
         } else {
             // Leave undetected pins as plain inputs
@@ -244,7 +256,16 @@ void setupOTA() {
 bool setRelay(uint8_t index, bool state) {
     if (index >= activeRelayCount) return false;
     activeRelays[index].state = state;
-    digitalWrite(activeRelays[index].pin, state ? HIGH : LOW);
+    // Active-Low Logic: LOW = ON, HIGH = OFF
+    digitalWrite(activeRelays[index].pin, state ? LOW : HIGH);
+    
+    // Save to memory
+    preferences.begin("safelink", false);
+    char keyName[16];
+    snprintf(keyName, sizeof(keyName), "pin_%d", activeRelays[index].pin);
+    preferences.putBool(keyName, state);
+    preferences.end();
+    
     Serial.printf("[RELAY] %s → %s\n", activeRelays[index].name, state ? "ON" : "OFF");
     return true;
 }
