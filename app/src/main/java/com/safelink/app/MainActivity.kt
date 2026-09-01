@@ -16,6 +16,10 @@ import com.safelink.app.ui.MainScreen
 import com.safelink.app.ui.theme.SafeLinkTheme
 import com.safelink.app.ui.update.UpdateDialog
 import com.safelink.app.ui.update.UpdateViewModel
+import android.Manifest
+import android.os.Build
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import android.content.Intent
 import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
@@ -24,6 +28,7 @@ import kotlinx.coroutines.flow.first
 import com.safelink.app.data.discovery.DirectConnectionService
 import com.safelink.app.data.network.RelayApiService
 
+@com.google.accompanist.permissions.ExperimentalPermissionsApi
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,6 +49,28 @@ class MainActivity : ComponentActivity() {
             }
 
             SafeLinkTheme(darkTheme = settingsState.darkModeEnabled) {
+                
+                val blePermissions = rememberMultiplePermissionsState(
+                    permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        listOf(
+                            Manifest.permission.BLUETOOTH_CONNECT,
+                            Manifest.permission.BLUETOOTH_SCAN,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        )
+                    } else {
+                        listOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    }
+                )
+                
+                LaunchedEffect(Unit) {
+                    if (!blePermissions.allPermissionsGranted) {
+                        blePermissions.launchMultiplePermissionRequest()
+                    }
+                }
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

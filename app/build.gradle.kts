@@ -13,8 +13,8 @@ android {
         applicationId = "com.safelink.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 28
-        versionName = "1.6.0"
+        versionCode = 29
+        versionName = "1.6.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -77,6 +77,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
 
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:2.7.7")
