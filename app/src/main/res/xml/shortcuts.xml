@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android"
+           xmlns:app="http://schemas.android.com/apk/res-auto">
+    <!-- Google Assistant Capability -->
+    <capability android:name="actions.intent.OPEN_APP_FEATURE">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.safelink.app"
+            android:targetClass="com.safelink.app.ui.MainActivity">
+            <parameter
+                android:name="feature"
+                android:key="feature" />
+        </intent>
+    </capability>
+
+    <!-- Static Shortcut to turn on Light 1 -->
+    <shortcut
+        android:shortcutId="toggle_light1_on"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/light1_on">
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding
+                android:key="feature"
+                android:value="light1_on" />
+        </capability-binding>
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.safelink.app"
+            android:targetClass="com.safelink.app.ui.MainActivity"
+            android:data="safelink://toggle?light=1&amp;state=on" />
+    </shortcut>
+
+    <!-- Static Shortcut to turn off Light 1 -->
+    <shortcut
+        android:shortcutId="toggle_light1_off"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/light1_off">
+        <capability-binding android:key="actions.intent.OPEN_APP_FEATURE">
+            <parameter-binding
+                android:key="feature"
+                android:value="light1_off" />
+        </capability-binding>
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.safelink.app"
+            android:targetClass="com.safelink.app.ui.MainActivity"
+            android:data="safelink://toggle?light=1&amp;state=off" />
+    </shortcut>
+</shortcuts>

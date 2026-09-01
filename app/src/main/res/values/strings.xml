@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SafeLink</string>
+    <string name="light1_on">Turn on Light 1</string>
+    <string name="light1_off">Turn off Light 1</string>
 </resources>

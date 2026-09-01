@@ -16,6 +16,13 @@ import com.safelink.app.ui.MainScreen
 import com.safelink.app.ui.theme.SafeLinkTheme
 import com.safelink.app.ui.update.UpdateDialog
 import com.safelink.app.ui.update.UpdateViewModel
+import android.content.Intent
+import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import com.safelink.app.data.discovery.DirectConnectionService
+import com.safelink.app.data.network.RelayApiService
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +65,50 @@ class MainActivity : ComponentActivity() {
                             currentVersion = BuildConfig.VERSION_NAME,
                             onDismiss      = { updateViewModel.dismissDialog() }
                         )
+                    }
+                }
+            }
+        }
+        
+        handleIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW && intent.data?.scheme == "safelink") {
+            val uri = intent.data
+            if (uri?.host == "toggle") {
+                val lightStr = uri.getQueryParameter("light")
+                val stateStr = uri.getQueryParameter("state")
+                
+                if (lightStr != null && stateStr != null) {
+                    val state = stateStr == "on"
+                    val relayName = "Light $lightStr"
+                    
+                    Toast.makeText(this, "Assistant: Turning $stateStr $relayName...", Toast.LENGTH_SHORT).show()
+                    
+                    lifecycleScope.launch {
+                        try {
+                            val directConnectService = DirectConnectionService(applicationContext)
+                            val settingsRepo = (application as SafeLinkApplication).settingsRepository
+                            val pairingKey = settingsRepo.settingsFlow.first().pairingKey
+                            
+                            val device = directConnectService.tryDirectConnect(pairingKey)
+                            if (device != null) {
+                                val api = RelayApiService()
+                                api.toggleRelay(device.ip, relayName, state)
+                                Toast.makeText(this@MainActivity, "Success: $relayName is $stateStr", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(this@MainActivity, "Failed: Not connected to SafeLink Wi-Fi", Toast.LENGTH_LONG).show()
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            Toast.makeText(this@MainActivity, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             }
