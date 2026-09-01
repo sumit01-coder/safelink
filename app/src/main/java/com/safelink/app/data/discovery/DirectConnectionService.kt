@@ -52,7 +52,7 @@ class DirectConnectionService(private val context: Context) {
         })
     }
 
-    suspend fun tryDirectConnect(): SafeLinkDevice? = withContext(Dispatchers.IO) {
+    suspend fun tryDirectConnect(pairingKey: String): SafeLinkDevice? = withContext(Dispatchers.IO) {
         lastError = null
         val wifiNetwork = boundNetwork ?: getWifiNetwork()
         if (wifiNetwork != null) {
@@ -68,7 +68,7 @@ class DirectConnectionService(private val context: Context) {
             }
             socket.soTimeout = 3000 // 3 seconds wait for response
 
-            val message = "SAFELINK_DISCOVER".toByteArray()
+            val message = "DISCOVER_SAFELINK:$pairingKey".toByteArray()
             // Unicast directly to the ESP32 to bypass broadcast ENETUNREACH routing errors
             val targetAddress = InetAddress.getByName("192.168.4.1")
             val packet = DatagramPacket(message, message.size, targetAddress, 8888)
