@@ -33,7 +33,7 @@ static const char* AP_PASS      = "safelink123";     // Hotspot password (min 8 
 static const char* PAIRING_KEY  = "123456";          // Must match the Android App
 static const char* DEVICE_NAME  = "Xiao ESP32S3 Hub";
 static const char* HOSTNAME     = "safelink";        // Access via safelink.local
-static const char* FIRMWARE_VER = "1.4.0";
+static const char* FIRMWARE_VER = "1.4.1";
 
 // In AP mode, ESP32 always gets this fixed IP:
 static const IPAddress AP_IP(192, 168, 4, 1);
@@ -43,7 +43,7 @@ static const IPAddress AP_SUBNET(255, 255, 255, 0);
 // Hardware — GPIO pins to probe for relay modules
 // Adjust for your wiring. Xiao ESP32S3 usable pins: D0-D9
 // ─────────────────────────────────────────────────────────────
-static const uint8_t PROBE_PINS[]  = {D0, D1, D2, D3};
+static const uint8_t PROBE_PINS[]  = {D0, D1, D2, D3, D4, D5, D6};
 static const uint8_t NUM_PROBE     = sizeof(PROBE_PINS);
 static const uint8_t MAX_RELAYS    = 8;  // Maximum supported relays
 
@@ -93,28 +93,52 @@ void reconnectWiFiIfNeeded();
 // Relay names assigned by index (customize as needed)
 // ─────────────────────────────────────────────────────────────
 static const char* RELAY_NAMES[] = {
-    "Light", "Fan", "Relay 3", "Relay 4",
-    "Relay 5", "Relay 6", "Relay 7", "Relay 8"
+    "Light 1", "Light 2", "Light 3", "Light 4",
+    "Light 5", "Light 6", "Light 7", "Light 8"
 };
 
 // ─────────────────────────────────────────────────────────────
 // Hardware Setup — Auto-detect connected relay modules
 // ─────────────────────────────────────────────────────────────
 void setupHardware() {
-    Serial.println("=== Automatic Relay Detection ===");
-    activeRelayCount = 0;
+    Serial.println("=== Advanced Automatic Relay Detection ===");
+    // Do not reset activeRelayCount here, so this can be called repeatedly
+    
+    uint8_t previousCount = activeRelayCount;
+
+    const uint8_t SAMPLES_PER_PIN = 10;
+    const uint8_t HIGH_VOTES_NEEDED = 8;
+    const uint16_t SAMPLE_GAP_MS = 4;
+    const uint16_t MODE_SETTLE_MS = 15;
 
     for (uint8_t i = 0; i < NUM_PROBE && activeRelayCount < MAX_RELAYS; i++) {
         uint8_t pin = PROBE_PINS[i];
 
-        // Pull pin HIGH via internal resistor. Most relay modules with an
-        // optocoupler input will actively pull the line LOW when connected,
-        // because their input transistor presents a low-impedance load.
-        // If nothing is connected, the pin floats HIGH.
-        pinMode(pin, INPUT_PULLUP);
-        delay(20);  // Allow voltage to settle
+        // Skip pins that are already active
+        bool alreadyActive = false;
+        for(uint8_t j = 0; j < activeRelayCount; j++) {
+            if(activeRelays[j].pin == pin) {
+                alreadyActive = true;
+                break;
+            }
+        }
+        if (alreadyActive) continue;
 
-        bool relayDetected = (digitalRead(pin) == LOW);
+        // --- Step 1 (decisive): pull DOWN internally, see if it holds ---
+        pinMode(pin, INPUT_PULLDOWN);
+        delay(MODE_SETTLE_MS);
+
+        uint8_t highUnderPulldown = 0;
+        for (uint8_t s = 0; s < SAMPLES_PER_PIN; s++) {
+            if (digitalRead(pin) == HIGH) highUnderPulldown++;
+            delay(SAMPLE_GAP_MS);
+        }
+
+        // Decisive test: if the pin STILL reads HIGH most of the time even
+        // while the internal pull-down is actively fighting it, something
+        // external with a stronger pull (the relay module's onboard
+        // pull-up) must be attached.
+        bool relayDetected = (highUnderPulldown >= HIGH_VOTES_NEEDED);
 
         if (relayDetected) {
             uint8_t idx = activeRelayCount;
@@ -127,26 +151,17 @@ void setupHardware() {
             pinMode(pin, OUTPUT);
             digitalWrite(pin, LOW);
 
-            Serial.printf("  [FOUND] Pin D%d → %s\n", i, activeRelays[idx].name);
+            Serial.printf("  [FOUND] Pin D%d → %s (votes: %u/%u)\n", i, activeRelays[idx].name, highUnderPulldown, SAMPLES_PER_PIN);
             activeRelayCount++;
         } else {
-            Serial.printf("  [EMPTY] Pin D%d — no relay detected\n", i);
+            // Leave undetected pins as plain inputs
+            pinMode(pin, INPUT);
         }
     }
 
-    // Fallback: ensure at least one relay is registered so the app can connect
-    if (activeRelayCount == 0) {
-        Serial.println("  [WARN]  No relays detected. Registering default on D0.");
-        activeRelays[0].pin   = PROBE_PINS[0];
-        activeRelays[0].state = false;
-        strncpy(activeRelays[0].name, RELAY_NAMES[0], sizeof(activeRelays[0].name) - 1);
-        activeRelays[0].name[sizeof(activeRelays[0].name) - 1] = '\0';
-        pinMode(PROBE_PINS[0], OUTPUT);
-        digitalWrite(PROBE_PINS[0], LOW);
-        activeRelayCount = 1;
+    if (activeRelayCount > previousCount) {
+        Serial.printf("=== %d relay(s) ready (added %d) ===\n", activeRelayCount, activeRelayCount - previousCount);
     }
-
-    Serial.printf("=== %d relay(s) ready ===\n", activeRelayCount);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -436,9 +451,16 @@ void loop() {
     ArduinoOTA.handle();
     handleUdpDiscovery();
 
-    // Every 10 seconds, print how many clients are connected
+    // Background Hot-Plug Detection: Scan pins every 10 seconds
+    static uint32_t lastHardwareScan = 0;
+    if (millis() - lastHardwareScan > 10000) {
+        lastHardwareScan = millis();
+        setupHardware();
+    }
+
+    // Every 15 seconds, print how many clients are connected
     static uint32_t lastClientLog = 0;
-    if (millis() - lastClientLog > 10000) {
+    if (millis() - lastClientLog > 15000) {
         lastClientLog = millis();
         int n = WiFi.softAPgetStationNum();
         if (n > 0) {
