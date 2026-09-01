@@ -31,12 +31,7 @@ class DirectConnectionService(private val context: Context) {
      * automatic cellular routing for "no internet" Wi-Fi networks).
      */
     suspend fun tryDirectConnect(): SafeLinkDevice? = withContext(Dispatchers.IO) {
-        val candidateIps = listOf(
-            "192.168.4.1",   // ESP32 AP mode — always this
-            "192.168.4.2",
-            "192.168.1.1",
-            "192.168.0.1"
-        )
+        val candidateIps = listOf("192.168.4.1")
         val wifiNetwork = getWifiNetwork()
         lastError = null
         for (ip in candidateIps) {
@@ -65,14 +60,14 @@ class DirectConnectionService(private val context: Context) {
     }
 
     private fun fetchDevice(ip: String, wifiNetwork: Network?): SafeLinkDevice? {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         return try {
-            val url = URL("http://$ip:80/api/status")
-            val connection = if (wifiNetwork != null) {
-                // Canonical Android way to force a connection over a specific Network
-                wifiNetwork.openConnection(url) as HttpURLConnection
-            } else {
-                url.openConnection() as HttpURLConnection
+            if (wifiNetwork != null) {
+                connectivityManager.bindProcessToNetwork(wifiNetwork)
             }
+            
+            val url = URL("http://$ip:80/api/status")
+            val connection = url.openConnection() as HttpURLConnection
             
             connection.connectTimeout = 3000
             connection.readTimeout = 5000
@@ -91,6 +86,10 @@ class DirectConnectionService(private val context: Context) {
             lastError = e.javaClass.simpleName + ": " + e.message
             Log.e("DirectConnect", "Exception fetching from $ip: ${e.message}")
             null
+        } finally {
+            if (wifiNetwork != null) {
+                connectivityManager.bindProcessToNetwork(null)
+            }
         }
     }
 }
