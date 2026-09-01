@@ -35,12 +35,13 @@ fun DeviceCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        shape = RoundedCornerShape(20.dp),
+            .padding(vertical = 8.dp),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp, pressedElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         onClick = onClick ?: {}
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
 
             // ── Header ────────────────────────────────────────────────────────
             Row(
@@ -77,16 +78,17 @@ fun DeviceCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = device.deviceName,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 18.sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "ESP32 · ${device.ip}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TealAccent
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     // Status row
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -95,14 +97,14 @@ fun DeviceCard(
                                 .clip(RoundedCornerShape(4.dp))
                                 .background(if (device.isOnline) MintGreen else MutedRed)
                         )
-                        Spacer(modifier = Modifier.width(5.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (device.isOnline) "Online" else "Offline",
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                             color = if (device.isOnline) MintGreen else MutedRed
                         )
                         if (device.isOnline) {
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             WifiSignalIcon(signal = device.wifiSignal)
                         }
                     }
@@ -132,9 +134,9 @@ fun DeviceCard(
             }
 
             if (device.relays.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(20.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), thickness = 1.5.dp)
+                Spacer(modifier = Modifier.height(20.dp))
 
                 // Relay grid
                 Row(
@@ -160,33 +162,35 @@ fun RelayQuickControl(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val borderColor by animateColorAsState(
-        targetValue = if (relay.state) MintGreen else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-        animationSpec = tween(300),
-        label = "borderColor"
-    )
+    val isMainAction = relay.state
+
     val bgColor by animateColorAsState(
-        targetValue = if (relay.state) MintGreen.copy(alpha = 0.1f) else MaterialTheme.colorScheme.background,
+        targetValue = if (isMainAction) MintGreen else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         animationSpec = tween(300),
         label = "bgColor"
     )
     val contentColor by animateColorAsState(
-        targetValue = if (relay.state) MintGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+        targetValue = if (isMainAction) Color.White else MaterialTheme.colorScheme.onSurface,
         animationSpec = tween(300),
         label = "contentColor"
     )
+    val subContentColor by animateColorAsState(
+        targetValue = if (isMainAction) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = tween(300),
+        label = "subContentColor"
+    )
 
     Card(
-        modifier = modifier.height(88.dp),
-        shape = RoundedCornerShape(14.dp),
+        modifier = modifier.height(100.dp),
+        shape = RoundedCornerShape(18.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isMainAction) 6.dp else 0.dp),
         colors = CardDefaults.cardColors(containerColor = bgColor),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
         onClick = onClick
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(8.dp),
+                .padding(12.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -194,20 +198,20 @@ fun RelayQuickControl(
                 imageVector = relayIcon(relay.name),
                 contentDescription = relay.name,
                 tint = contentColor,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(28.dp)
             )
-            Spacer(modifier = Modifier.height(5.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = relay.name,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = contentColor,
                 maxLines = 1,
-                fontSize = 10.sp
             )
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = if (relay.state) "ON" else "OFF",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
-                color = contentColor,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
+                color = subContentColor,
                 fontSize = 11.sp
             )
         }
