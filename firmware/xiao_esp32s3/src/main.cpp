@@ -36,7 +36,7 @@ static const char* AP_PASS      = "safelink123";     // Hotspot password (min 8 
 static const char* PAIRING_KEY  = "123456";          // Must match the Android App
 static const char* DEVICE_NAME  = "Xiao ESP32S3 Hub";
 static const char* HOSTNAME     = "safelink";        // Access via safelink.local
-static const char* FIRMWARE_VER = "1.4.3";
+static const char* FIRMWARE_VER = "1.5.0";
 
 // In AP mode, ESP32 always gets this fixed IP:
 static const IPAddress AP_IP(192, 168, 4, 1);
@@ -411,21 +411,60 @@ void handleUdpDiscovery() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// BLE Advertising Setup
+// BLE GATT Server Setup
 // ─────────────────────────────────────────────────────────────
 static const char* BLE_SERVICE_UUID = "a07498ca-1088-4361-9c3a-23d9a101fcc4";
+static const char* BLE_COMMAND_CHAR_UUID = "d486d365-27a1-4ee6-85dc-b1187799d123";
+static const char* BLE_STATUS_CHAR_UUID  = "c2e55725-b467-4d69-b5f7-669c3a37b420";
+
+class BleCommandCallback : public NimBLECharacteristicCallbacks {
+    void onWrite(NimBLECharacteristic* pCharacteristic) {
+        std::string value = pCharacteristic->getValue();
+        if (value.length() > 0) {
+            Serial.printf("[BLE] Command received: %s\n", value.c_str());
+            StaticJsonDocument<128> doc;
+            DeserializationError error = deserializeJson(doc, value);
+            if (!error) {
+                if (doc.containsKey("relayIndex") && doc.containsKey("state")) {
+                    int idx = doc["relayIndex"];
+                    bool state = doc["state"];
+                    setRelay(idx, state);
+                }
+            } else {
+                Serial.println("[BLE] JSON Parse Error");
+            }
+        }
+    }
+};
+
+class BleStatusCallback : public NimBLECharacteristicCallbacks {
+    void onRead(NimBLECharacteristic* pCharacteristic) {
+        char buf[512];
+        buildStatusJson(buf, sizeof(buf));
+        pCharacteristic->setValue((uint8_t*)buf, strlen(buf));
+    }
+};
 
 void setupBLE() {
     NimBLEDevice::init(DEVICE_NAME);
     NimBLEServer *pServer = NimBLEDevice::createServer();
     NimBLEService *pService = pServer->createService(BLE_SERVICE_UUID);
+    
+    NimBLECharacteristic *pCommandChar = pService->createCharacteristic(
+        BLE_COMMAND_CHAR_UUID, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR
+    );
+    pCommandChar->setCallbacks(new BleCommandCallback());
+
+    NimBLECharacteristic *pStatusChar = pService->createCharacteristic(
+        BLE_STATUS_CHAR_UUID, NIMBLE_PROPERTY::READ
+    );
+    pStatusChar->setCallbacks(new BleStatusCallback());
+    
     pService->start();
 
     NimBLEAdvertising *pAdvertising = NimBLEDevice::getAdvertising();
     pAdvertising->addServiceUUID(BLE_SERVICE_UUID);
     
-    // Embed IP address and pairing key in Manufacturer Data
-    // We use a dummy company ID (0xFFFF)
     std::string mData = "";
     mData += (char)0xFF; 
     mData += (char)0xFF;
@@ -441,13 +480,12 @@ void setupBLE() {
     pAdvertising->setManufacturerData(mData);
     pAdvertising->setScanResponseData(NimBLEAdvertisementData());
     
-    // Aggressive advertising intervals for rapid discovery (0x20 = 20ms, 0x40 = 40ms)
     pAdvertising->setMinInterval(0x20);
     pAdvertising->setMaxInterval(0x40);
     
     pAdvertising->start();
     
-    Serial.println("[OK] BLE Advertising started");
+    Serial.println("[OK] BLE GATT Server started");
 }
 
 // ─────────────────────────────────────────────────────────────
