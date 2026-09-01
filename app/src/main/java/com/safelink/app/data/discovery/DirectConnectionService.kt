@@ -48,6 +48,10 @@ class DirectConnectionService(private val context: Context) {
         fetchDevice(ip, getWifiNetwork())
     }
 
+    fun hasWifiNetwork(): Boolean {
+        return getWifiNetwork() != null
+    }
+
     private fun getWifiNetwork(): Network? {
         val connectivityManager =
             context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
