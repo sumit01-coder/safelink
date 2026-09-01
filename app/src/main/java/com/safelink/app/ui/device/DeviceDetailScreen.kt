@@ -73,8 +73,6 @@ fun DeviceDetailScreen(
 
 @Composable
 fun LightControllerCard(relay: Relay, onToggle: () -> Unit) {
-    var brightness by remember { mutableFloatStateOf(0.7f) }
-
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -122,49 +120,12 @@ fun LightControllerCard(relay: Relay, onToggle: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Body
-            Row(modifier = Modifier.fillMaxWidth()) {
-                // Slider
-                Box(
-                    modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularSlider(
-                        value = if (relay.state) brightness else 0f,
-                        onValueChange = { if (relay.state) brightness = it },
-                        color = LightOrange,
-                        label = "Brightness",
-                        enabled = relay.state
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                // Actions
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("QUICK ACTIONS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        QuickActionButton(icon = Icons.Default.WbSunny, label = "Bright", color = LightOrange, active = brightness > 0.8f && relay.state, onClick = { brightness = 1f; if (!relay.state) onToggle() })
-                        QuickActionButton(icon = Icons.Default.BrightnessMedium, label = "Dim", color = MaterialTheme.colorScheme.onSurfaceVariant, active = brightness in 0.3f..0.8f && relay.state, onClick = { brightness = 0.5f; if (!relay.state) onToggle() })
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        QuickActionButton(icon = Icons.Default.Nightlight, label = "Night", color = MaterialTheme.colorScheme.onSurfaceVariant, active = brightness < 0.3f && relay.state, onClick = { brightness = 0.1f; if (!relay.state) onToggle() })
-                        QuickActionButton(icon = Icons.Default.FavoriteBorder, label = "Relax", color = MaterialTheme.colorScheme.onSurfaceVariant, active = false, onClick = { })
-                    }
-                }
-            }
         }
     }
 }
 
 @Composable
 fun FanControllerCard(relay: Relay, onToggle: () -> Unit) {
-    var speed by remember { mutableFloatStateOf(0.6f) }
-
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -212,41 +173,6 @@ fun FanControllerCard(relay: Relay, onToggle: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Body
-            Row(modifier = Modifier.fillMaxWidth()) {
-                // Slider
-                Box(
-                    modifier = Modifier.weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularSlider(
-                        value = if (relay.state) speed else 0f,
-                        onValueChange = { if (relay.state) speed = it },
-                        color = FanBlue,
-                        label = "Speed",
-                        enabled = relay.state
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                // Actions
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("QUICK ACTIONS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        QuickActionButton(icon = Icons.Default.KeyboardArrowDown, label = "Low", color = MaterialTheme.colorScheme.onSurfaceVariant, active = speed < 0.4f && relay.state, onClick = { speed = 0.3f; if (!relay.state) onToggle() })
-                        QuickActionButton(icon = Icons.Default.Remove, label = "Med", color = MaterialTheme.colorScheme.onSurfaceVariant, active = speed in 0.4f..0.7f && relay.state, onClick = { speed = 0.6f; if (!relay.state) onToggle() })
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        QuickActionButton(icon = Icons.Default.KeyboardArrowUp, label = "High", color = FanBlue, active = speed > 0.7f && relay.state, onClick = { speed = 1f; if (!relay.state) onToggle() })
-                        QuickActionButton(icon = Icons.Default.Storm, label = "Turbo", color = MaterialTheme.colorScheme.onSurfaceVariant, active = false, onClick = { })
-                    }
-                }
-            }
         }
     }
 }
