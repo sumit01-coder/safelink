@@ -1,6 +1,7 @@
 package com.safelink.app.ui.home
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.safelink.app.data.discovery.BleDiscoveryService
 import com.safelink.app.data.discovery.DirectConnectionService
@@ -25,9 +26,9 @@ data class HomeUiState(
     val error: String? = null
 )
 
-class HomeViewModel : ViewModel() {
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val bleDiscoveryService   = BleDiscoveryService()
-    private val directConnectService  = DirectConnectionService()
+    private val directConnectService  = DirectConnectionService(application.applicationContext)
     private val relayApiService       = RelayApiService()
 
     private val _uiState = MutableStateFlow(HomeUiState())
