@@ -365,12 +365,12 @@ void setupHTTP() {
     // Body params: relayIndex, autoOnDelay (sec), autoOffDelay (sec). -1 means ignore, 0 means cancel.
     server.on("/api/relay/timer", HTTP_POST, [](AsyncWebServerRequest* req) {
         if (!req->hasParam("relayIndex", true)) {
-            req->send(400, "application/json", "{"error":"Missing relayIndex"}");
+            req->send(400, "application/json", "{\"error\":\"Missing relayIndex\"}");
             return;
         }
         int idx = req->getParam("relayIndex", true)->value().toInt();
         if (idx < 0 || idx >= activeRelayCount) {
-            req->send(400, "application/json", "{"error":"Relay not found"}");
+            req->send(400, "application/json", "{\"error\":\"Relay not found\"}");
             return;
         }
 
@@ -387,7 +387,7 @@ void setupHTTP() {
             else if (delaySec == 0) activeRelays[idx].autoOffTimeMs = 0;
         }
 
-        req->send(200, "application/json", "{"status":"ok"}");
+        req->send(200, "application/json", "{\"status\":\"ok\"}");
     });
 
     // POST /api/relay/toggle — toggle relay by name or index
