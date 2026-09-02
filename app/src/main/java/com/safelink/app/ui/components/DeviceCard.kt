@@ -319,45 +319,50 @@ fun RelayQuickControl(
                     label = "switchBg"
                 )
                 
-                Box(
-                    modifier = Modifier
-                        .width(48.dp)
-                        .height(24.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(switchBgColor)
-                        .padding(horizontal = 0.dp),
-                    contentAlignment = Alignment.CenterStart
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .offset(x = switchOffset)
-                            .size(20.dp)
+                            .width(48.dp)
+                            .height(24.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(switchBgColor)
+                            .padding(horizontal = 0.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .offset(x = switchOffset)
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(if (isMainAction) MintGreen else Color.White.copy(alpha = 0.9f))
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.width(12.dp))
+                    
+                    // Timer Button
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
                             .clip(CircleShape)
-                            .background(if (isMainAction) MintGreen else Color.White.copy(alpha = 0.9f))
-                    )
+                            .background(if (relay.autoOnLeft > 0 || relay.autoOffLeft > 0) MintGreen.copy(alpha=0.2f) else Color.White.copy(alpha = 0.1f))
+                            .clickable { 
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onTimerClick?.invoke()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Timer,
+                            contentDescription = "Timer",
+                            tint = if (relay.autoOnLeft > 0 || relay.autoOffLeft > 0) MintGreen else Color.White.copy(alpha = 0.6f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
-            }
-
-            // Timer Button
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(12.dp)
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(if (relay.autoOnLeft > 0 || relay.autoOffLeft > 0) MintGreen.copy(alpha=0.2f) else Color.White.copy(alpha = 0.1f))
-                    .clickable { 
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onTimerClick?.invoke()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.Timer,
-                    contentDescription = "Timer",
-                    tint = if (relay.autoOnLeft > 0 || relay.autoOffLeft > 0) MintGreen else Color.White.copy(alpha = 0.6f),
-                    modifier = Modifier.size(16.dp)
-                )
             }
         }
     }
