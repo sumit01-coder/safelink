@@ -2,6 +2,8 @@ package com.safelink.app.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -174,25 +176,28 @@ fun RelayQuickControl(
     val haptic = LocalHapticFeedback.current
     val isMainAction = relay.state
 
+    val springSpec = spring<Color>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+    val springDpSpec = spring<androidx.compose.ui.unit.Dp>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+
     val bgColor by animateColorAsState(
         targetValue = if (isMainAction) MintGreen else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        animationSpec = tween(300),
+        animationSpec = springSpec,
         label = "bgColor"
     )
     val contentColor by animateColorAsState(
         targetValue = if (isMainAction) Color.White else MaterialTheme.colorScheme.onSurface,
-        animationSpec = tween(300),
+        animationSpec = springSpec,
         label = "contentColor"
     )
     val subContentColor by animateColorAsState(
         targetValue = if (isMainAction) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(300),
+        animationSpec = springSpec,
         label = "subContentColor"
     )
 
     val shadowElevation by androidx.compose.animation.core.animateDpAsState(
         targetValue = if (isMainAction) 16.dp else 0.dp,
-        animationSpec = tween(300),
+        animationSpec = springDpSpec,
         label = "shadowElevation"
     )
 
@@ -208,6 +213,7 @@ fun RelayQuickControl(
                 ambientColor = MintGreen,
                 spotColor = MintGreen
             )
+            .clip(RoundedCornerShape(18.dp))
             .combinedClickable(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)

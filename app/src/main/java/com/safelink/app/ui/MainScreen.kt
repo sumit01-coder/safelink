@@ -45,7 +45,7 @@ import com.safelink.app.SafeLinkApplication
 import com.safelink.app.ui.settings.SettingsViewModel
 import com.safelink.app.ui.update.UpdateViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(updateViewModel: UpdateViewModel) {
     val navController = rememberNavController()

@@ -47,6 +47,7 @@ import com.safelink.app.ui.components.DeviceCard
 import com.safelink.app.ui.theme.MintGreen
 import com.safelink.app.ui.theme.TealAccent
 
+@androidx.compose.foundation.ExperimentalFoundationApi
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
@@ -265,9 +266,13 @@ fun HomeScreen(
                     }
                 }
             } else {
-                items(uiState.devices) { device ->
+                items(items = uiState.devices, key = { it.deviceId }) { device ->
                     DeviceCard(
                         device = device,
+                        modifier = Modifier.animateItemPlacement(animationSpec = androidx.compose.animation.core.spring(
+                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                        )),
                         onClick = { onDeviceClick(device.ip) },
                         onRelayClick = { relay -> onRelayClick(device, relay) },
                         onRelayLongClick = { relay -> renameDialogState.value = Pair(device, relay) }
