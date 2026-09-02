@@ -209,7 +209,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             var success = relayApiService.toggleRelay(
                 ip   = device.ip,
                 port = device.port,
-                name = relay.name,
+                name = null,
+                relayIndex = relay.id - 1,
                 state = newState
             )
 
