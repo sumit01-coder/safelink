@@ -18,6 +18,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -168,6 +171,7 @@ fun RelayQuickControl(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
+    val haptic = LocalHapticFeedback.current
     val isMainAction = relay.state
 
     val bgColor by animateColorAsState(
@@ -186,14 +190,34 @@ fun RelayQuickControl(
         label = "subContentColor"
     )
 
+    val shadowElevation by androidx.compose.animation.core.animateDpAsState(
+        targetValue = if (isMainAction) 16.dp else 0.dp,
+        animationSpec = tween(300),
+        label = "shadowElevation"
+    )
+
     Card(
         shape = RoundedCornerShape(18.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isMainAction) 6.dp else 0.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = bgColor),
-        modifier = modifier.height(100.dp).combinedClickable(
-            onClick = onClick,
-            onLongClick = onLongClick
-        )
+        modifier = modifier
+            .height(100.dp)
+            .shadow(
+                elevation = shadowElevation,
+                shape = RoundedCornerShape(18.dp),
+                ambientColor = MintGreen,
+                spotColor = MintGreen
+            )
+            .combinedClickable(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onClick()
+                },
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongClick?.invoke()
+                }
+            )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // Hardware Connection Dot
