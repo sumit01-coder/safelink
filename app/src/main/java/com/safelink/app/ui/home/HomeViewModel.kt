@@ -159,7 +159,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         // Re-use directConnectService which has the Wi-Fi-bound socket
         val fullDevice = directConnectService.fetchStatus(bleDevice.ip)
         val target = fullDevice ?: bleDevice.copy(
-            relays = List(bleDevice.relayCount) { com.safelink.app.data.model.Relay(id = it + 1, name = "Relay ${it + 1}", state = false) }
+            relays = List(bleDevice.relayCount) { 
+                com.safelink.app.data.model.Relay(
+                    id = it + 1, 
+                    name = "Relay ${it + 1}", 
+                    state = false,
+                    connected = false,
+                    pinName = "?"
+                ) 
+            }
         )
         val namedDevice = applyCustomNames(target)
         val normalized = namedDevice.copy(

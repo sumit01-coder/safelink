@@ -195,33 +195,58 @@ fun RelayQuickControl(
             onLongClick = onLongClick
         )
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(
-                imageVector = relayIcon(relay.name),
-                contentDescription = relay.name,
-                tint = contentColor,
-                modifier = Modifier.size(28.dp)
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Hardware Connection Dot
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (relay.connected) MintGreen else MutedRed)
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = relay.name,
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = contentColor,
-                maxLines = 1,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = if (relay.state) "ON" else "OFF",
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
-                color = subContentColor,
-                fontSize = 11.sp
-            )
+            
+            // Pin Name Label
+            if (relay.pinName != null) {
+                Text(
+                    text = relay.pinName,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+                    color = subContentColor.copy(alpha = 0.5f),
+                    fontSize = 9.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = relayIcon(relay.name),
+                    contentDescription = relay.name,
+                    tint = contentColor,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = relay.name,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = contentColor,
+                    maxLines = 1,
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = if (relay.state) "ON" else "OFF",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
+                    color = subContentColor,
+                    fontSize = 11.sp
+                )
+            }
         }
     }
 }

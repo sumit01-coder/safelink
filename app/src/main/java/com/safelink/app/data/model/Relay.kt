@@ -6,5 +6,7 @@ import kotlinx.serialization.Serializable
 data class Relay(
     val id: Int = 0,        // Optional — not present in ESP32 JSON; assigned by index locally
     val name: String,
-    val state: Boolean
+    val state: Boolean,
+    val connected: Boolean = true,
+    val pinName: String? = null
 )

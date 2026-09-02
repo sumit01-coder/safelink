@@ -289,7 +289,14 @@ fun HomeScreen(
                         value = newName,
                         onValueChange = { newName = it },
                         label = { Text("New Name") },
-                        singleLine = true
+                        singleLine = true,
+                        leadingIcon = {
+                            Icon(
+                                imageVector = com.safelink.app.ui.components.relayIcon(newName),
+                                contentDescription = null,
+                                tint = TealAccent
+                            )
+                        }
                     )
                 },
                 confirmButton = {

@@ -36,7 +36,7 @@ static const char* AP_PASS      = "safelink123";     // Hotspot password (min 8 
 static const char* PAIRING_KEY  = "123456";          // Must match the Android App
 static const char* DEVICE_NAME  = "Xiao ESP32S3 Hub";
 static const char* HOSTNAME     = "safelink";        // Access via safelink.local
-static const char* FIRMWARE_VER = "1.5.0";
+static const char* FIRMWARE_VER = "1.6.0";
 
 // In AP mode, ESP32 always gets this fixed IP:
 static const IPAddress AP_IP(192, 168, 4, 1);
@@ -66,6 +66,7 @@ struct RelayDescriptor {
     uint8_t  pin;
     char     name[24];
     bool     state;       // true = ON, false = OFF
+    bool     isConnected; // true = physically detected, false = missing
 };
 
 static RelayDescriptor activeRelays[MAX_RELAYS];
@@ -92,6 +93,20 @@ bool setRelay(uint8_t index, bool state);
 int  findRelayByName(const char* name);
 void reconnectWiFiIfNeeded();
 
+const char* getPinName(uint8_t pin) {
+    if (pin == D0) return "D0";
+    if (pin == D1) return "D1";
+    if (pin == D2) return "D2";
+    if (pin == D3) return "D3";
+    if (pin == D4) return "D4";
+    if (pin == D5) return "D5";
+    if (pin == D6) return "D6";
+    if (pin == D7) return "D7";
+    if (pin == D8) return "D8";
+    if (pin == D9) return "D9";
+    return "?";
+}
+
 // ─────────────────────────────────────────────────────────────
 // Relay names assigned by index (customize as needed)
 // ─────────────────────────────────────────────────────────────
@@ -117,15 +132,21 @@ void setupHardware() {
     for (uint8_t i = 0; i < NUM_PROBE && activeRelayCount < MAX_RELAYS; i++) {
         uint8_t pin = PROBE_PINS[i];
 
-        // Skip pins that are already active
-        bool alreadyActive = false;
+        // Check if this pin is already registered
+        int existingIdx = -1;
         for(uint8_t j = 0; j < activeRelayCount; j++) {
             if(activeRelays[j].pin == pin) {
-                alreadyActive = true;
+                existingIdx = j;
                 break;
             }
         }
-        if (alreadyActive) continue;
+        
+        // If it's already active, we must temporarily switch it to INPUT to test it
+        // Note: this causes a tiny glitch in output, but is necessary for hot-plug detection
+        bool originalState = false;
+        if (existingIdx >= 0) {
+            originalState = activeRelays[existingIdx].state;
+        }
 
         // --- Step 1 (decisive): pull DOWN internally, see if it holds ---
         pinMode(pin, INPUT_PULLDOWN);
@@ -137,16 +158,28 @@ void setupHardware() {
             delay(SAMPLE_GAP_MS);
         }
 
-        // Decisive test: if the pin STILL reads HIGH most of the time even
-        // while the internal pull-down is actively fighting it, something
-        // external with a stronger pull (the relay module's onboard
-        // pull-up) must be attached.
         bool relayDetected = (highUnderPulldown >= HIGH_VOTES_NEEDED);
 
-        if (relayDetected) {
+        if (existingIdx >= 0) {
+            // It was already registered, just update connection status
+            bool wasConnected = activeRelays[existingIdx].isConnected;
+            activeRelays[existingIdx].isConnected = relayDetected;
+            
+            if (relayDetected && !wasConnected) {
+                Serial.printf("  [RE-CONNECTED] %s on %s\n", activeRelays[existingIdx].name, getPinName(pin));
+            } else if (!relayDetected && wasConnected) {
+                Serial.printf("  [DISCONNECTED] %s unplugged from %s\n", activeRelays[existingIdx].name, getPinName(pin));
+            }
+            
+            // Restore output
+            pinMode(pin, OUTPUT);
+            digitalWrite(pin, activeRelays[existingIdx].state ? LOW : HIGH);
+        } else if (relayDetected && activeRelayCount < MAX_RELAYS) {
+            // New relay detected
             uint8_t idx = activeRelayCount;
             activeRelays[idx].pin   = pin;
             activeRelays[idx].state = false;
+            activeRelays[idx].isConnected = true;
             strncpy(activeRelays[idx].name, RELAY_NAMES[idx], sizeof(activeRelays[idx].name) - 1);
             activeRelays[idx].name[sizeof(activeRelays[idx].name) - 1] = '\0';
 
@@ -159,14 +192,13 @@ void setupHardware() {
             
             activeRelays[idx].state = savedState;
 
-            // Switch to output and ensure relay uses Active-Low logic (HIGH = OFF, LOW = ON)
             pinMode(pin, OUTPUT);
             digitalWrite(pin, savedState ? LOW : HIGH);
 
-            Serial.printf("  [FOUND] Pin D%d → %s (votes: %u/%u) [Restored: %s]\n", i, activeRelays[idx].name, highUnderPulldown, SAMPLES_PER_PIN, savedState ? "ON" : "OFF");
+            Serial.printf("  [FOUND] %s on %s (votes: %u/%u) [Restored: %s]\n", activeRelays[idx].name, getPinName(pin), highUnderPulldown, SAMPLES_PER_PIN, savedState ? "ON" : "OFF");
             activeRelayCount++;
         } else {
-            // Leave undetected pins as plain inputs
+            // Not registered and not detected
             pinMode(pin, INPUT);
         }
     }
@@ -300,6 +332,8 @@ void buildStatusJson(char* buf, size_t bufLen) {
         r["id"]    = i + 1;
         r["name"]  = activeRelays[i].name;
         r["state"] = activeRelays[i].state;
+        r["connected"] = activeRelays[i].isConnected;
+        r["pinName"]   = getPinName(activeRelays[i].pin);
     }
     serializeJson(doc, buf, bufLen);
 }
