@@ -161,7 +161,8 @@ fun DeviceCard(
                             relay = relay,
                             modifier = Modifier.weight(1f),
                             onClick = { onRelayClick(relay) },
-                            onLongClick = { onRelayLongClick?.invoke(relay) }
+                            onLongClick = { onRelayLongClick?.invoke(relay) },
+                            onTimerClick = { onTimerClick?.invoke(relay) }
                         )
                     }
                 }
@@ -183,50 +184,27 @@ fun RelayQuickControl(
     val isMainAction = relay.state
 
     val springSpec = spring<Color>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
-    val springDpSpec = spring<androidx.compose.ui.unit.Dp>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+    val floatSpringSpec = spring<Float>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
 
-    val bgColor by animateColorAsState(
-        targetValue = if (isMainAction) MintGreen else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-        animationSpec = springSpec,
-        label = "bgColor"
-    )
+    // Colors matching the dark premium UI
+    val cardBg = if (isMainAction) Color(0xFF1E293B) else Color(0xFF0F172A)
+    val ringColorStart = if (isMainAction) MintGreen else Color(0xFFF59E0B)
+    val ringColorEnd = if (isMainAction) Color(0xFF0D9488) else Color(0xFFE11D48)
     
-    val bgGradient = if (isMainAction) {
-        Brush.linearGradient(colors = listOf(bgColor.copy(alpha = 0.9f), bgColor))
-    } else {
-        Brush.linearGradient(colors = listOf(bgColor, bgColor.copy(alpha = 0.7f)))
-    }
-    
+    val bgColor by animateColorAsState(targetValue = cardBg, animationSpec = springSpec, label = "bg")
     val contentColor by animateColorAsState(
-        targetValue = if (isMainAction) Color.White else MaterialTheme.colorScheme.onSurface,
-        animationSpec = springSpec,
-        label = "contentColor"
-    )
-    val subContentColor by animateColorAsState(
-        targetValue = if (isMainAction) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = springSpec,
-        label = "subContentColor"
-    )
-
-    val shadowElevation by androidx.compose.animation.core.animateDpAsState(
-        targetValue = if (isMainAction) 16.dp else 0.dp,
-        animationSpec = springDpSpec,
-        label = "shadowElevation"
+        targetValue = if (isMainAction) Color.White else Color.White.copy(alpha = 0.8f),
+        animationSpec = springSpec, label = "content"
     )
 
     Card(
-        shape = RoundedCornerShape(18.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
         modifier = modifier
-            .height(100.dp)
-            .shadow(
-                elevation = shadowElevation,
-                shape = RoundedCornerShape(18.dp),
-                ambientColor = MintGreen,
-                spotColor = MintGreen
-            )
-            .clip(RoundedCornerShape(18.dp))
+            .height(180.dp)
+            .shadow(if (isMainAction) 16.dp else 4.dp, RoundedCornerShape(20.dp), ambientColor = ringColorStart)
+            .clip(RoundedCornerShape(20.dp))
             .combinedClickable(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -238,89 +216,125 @@ fun RelayQuickControl(
                 }
             )
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(bgGradient)) {
-            // Hardware Connection Dot
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-                    .size(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(if (relay.connected) MintGreen else MutedRed)
-            )
-            
-            // Pin Name Label & Timer Status
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Top Row: Pin Name & Connection Dot
             Row(
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (relay.pinName != null) {
-                    Text(
-                        text = relay.pinName,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
-                        color = subContentColor.copy(alpha = 0.5f),
-                        fontSize = 9.sp
+                Text(
+                    text = relay.pinName ?: "",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 11.sp
+                )
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (relay.connected) MintGreen else MutedRed)
+                )
+            }
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Icon in Glowing Ring
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(CircleShape)
+                        .background(Color.Transparent)
+                        .border(
+                            width = 1.5.dp,
+                            brush = Brush.linearGradient(listOf(ringColorStart.copy(alpha = 0.8f), ringColorEnd.copy(alpha = 0.2f))),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = relayIcon(relay.name),
+                        contentDescription = null,
+                        tint = contentColor,
+                        modifier = Modifier.size(28.dp)
                     )
                 }
-                if (relay.autoOnLeft > 0 || relay.autoOffLeft > 0) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        Icons.Default.Timer,
-                        contentDescription = "Timer Active",
-                        tint = if (isMainAction) Color.White else MintGreen,
-                        modifier = Modifier.size(10.dp)
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Name & State
+                Text(
+                    text = relay.name,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = if (isMainAction) "ON" else "OFF",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 10.sp
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Custom Bottom Switch
+                val switchOffset by androidx.compose.animation.core.animateDpAsState(
+                    targetValue = if (isMainAction) 24.dp else 4.dp,
+                    animationSpec = spring<androidx.compose.ui.unit.Dp>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                    label = "switchOffset"
+                )
+                val switchBgColor by animateColorAsState(
+                    targetValue = if (isMainAction) MintGreen.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.1f),
+                    animationSpec = springSpec,
+                    label = "switchBg"
+                )
+                
+                Box(
+                    modifier = Modifier
+                        .width(48.dp)
+                        .height(24.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(switchBgColor)
+                        .padding(horizontal = 0.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .offset(x = switchOffset)
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(if (isMainAction) MintGreen else Color.White.copy(alpha = 0.9f))
                     )
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = relayIcon(relay.name),
-                    contentDescription = relay.name,
-                    tint = contentColor,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = relay.name,
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = contentColor,
-                    maxLines = 1,
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = if (relay.state) "ON" else "OFF",
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
-                    color = subContentColor,
-                    fontSize = 11.sp
-                )
-            }
-            
-            // Timer Button (Bottom Right)
+            // Timer Button
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(6.dp)
-                    .size(24.dp)
+                    .padding(12.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.15f))
+                    .background(if (relay.autoOnLeft > 0 || relay.autoOffLeft > 0) MintGreen.copy(alpha=0.2f) else Color.White.copy(alpha = 0.1f))
                     .clickable { 
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onTimerClick?.invoke() 
+                        onTimerClick?.invoke()
                     },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Default.Timer,
-                    contentDescription = "Set Timer",
-                    tint = subContentColor,
-                    modifier = Modifier.size(14.dp)
+                    contentDescription = "Timer",
+                    tint = if (relay.autoOnLeft > 0 || relay.autoOffLeft > 0) MintGreen else Color.White.copy(alpha = 0.6f),
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
