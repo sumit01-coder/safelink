@@ -36,7 +36,7 @@ static const char* AP_PASS      = "safelink123";     // Hotspot password (min 8 
 static const char* PAIRING_KEY  = "123456";          // Must match the Android App
 static const char* DEVICE_NAME  = "Xiao ESP32S3 Hub";
 static const char* HOSTNAME     = "safelink";        // Access via safelink.local
-static const char* FIRMWARE_VER = "1.6.0";
+static const char* FIRMWARE_VER = "1.6.1";
 
 // In AP mode, ESP32 always gets this fixed IP:
 static const IPAddress AP_IP(192, 168, 4, 1);
@@ -141,11 +141,11 @@ void setupHardware() {
             }
         }
         
-        // If it's already active, we must temporarily switch it to INPUT to test it
-        // Note: this causes a tiny glitch in output, but is necessary for hot-plug detection
-        bool originalState = false;
-        if (existingIdx >= 0) {
-            originalState = activeRelays[existingIdx].state;
+        // Anti-Chatter Guard: If the relay is active and currently ON (state == true),
+        // we SKIP the hardware probe. Pulling the pin to INPUT_PULLDOWN would cause
+        // the mechanical relay to briefly click OFF. We assume it's still connected.
+        if (existingIdx >= 0 && activeRelays[existingIdx].state == true) {
+            continue; // Skip the test, leave output LOW (ON) untouched
         }
 
         // --- Step 1 (decisive): pull DOWN internally, see if it holds ---
