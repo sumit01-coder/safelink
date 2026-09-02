@@ -320,7 +320,7 @@ int findRelayByName(const char* name) {
 // Build JSON status blob (reused by /api/status and UDP response)
 // ─────────────────────────────────────────────────────────────
 void buildStatusJson(char* buf, size_t bufLen) {
-    StaticJsonDocument<512> doc;
+    StaticJsonDocument<1536> doc;
     doc["deviceId"]   = WiFi.softAPmacAddress();
     doc["deviceName"] = DEVICE_NAME;
     doc["ip"]         = WiFi.softAPIP().toString();
@@ -352,7 +352,7 @@ void buildStatusJson(char* buf, size_t bufLen) {
 void setupHTTP() {
     // GET /api/status — device health and relay states
     server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest* req) {
-        char buf[512];
+        char buf[1536];
         buildStatusJson(buf, sizeof(buf));
         AsyncWebServerResponse* res = req->beginResponse(200, "application/json", buf);
         res->addHeader("Access-Control-Allow-Origin", "*");
@@ -510,7 +510,7 @@ class BleCommandCallback : public NimBLECharacteristicCallbacks {
 
 class BleStatusCallback : public NimBLECharacteristicCallbacks {
     void onRead(NimBLECharacteristic* pCharacteristic) {
-        char buf[512];
+        char buf[1536];
         buildStatusJson(buf, sizeof(buf));
         pCharacteristic->setValue((uint8_t*)buf, strlen(buf));
     }

@@ -151,19 +151,31 @@ fun DeviceCard(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), thickness = 1.5.dp)
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Relay grid
-                Row(
+                // Relay grid (2 columns)
+                val chunkedRelays = device.relays.chunked(2)
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    device.relays.forEach { relay ->
-                        RelayQuickControl(
-                            relay = relay,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onRelayClick(relay) },
-                            onLongClick = { onRelayLongClick?.invoke(relay) },
-                            onTimerClick = { onTimerClick?.invoke(relay) }
-                        )
+                    chunkedRelays.forEach { rowRelays ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            rowRelays.forEach { relay ->
+                                RelayQuickControl(
+                                    relay = relay,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onRelayClick(relay) },
+                                    onLongClick = { onRelayLongClick?.invoke(relay) },
+                                    onTimerClick = { onTimerClick?.invoke(relay) }
+                                )
+                            }
+                            // If row is incomplete, add an empty spacer with same weight to maintain grid alignment
+                            if (rowRelays.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
             }
