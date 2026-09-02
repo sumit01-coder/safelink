@@ -1,5 +1,18 @@
 package com.safelink.app.ui.home
 
+import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.net.wifi.WifiManager
+import android.bluetooth.BluetoothAdapter
+import android.provider.Settings
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.filled.BluetoothDisabled
+import com.safelink.app.ui.theme.MutedRed
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -77,6 +90,9 @@ fun HomeScreen(
     ) {
         item {
             Spacer(modifier = Modifier.height(16.dp))
+            ConnectivityBanners()
+        }
+        item {
 
             // Summary banner
             Box(
@@ -292,4 +308,119 @@ fun HomeScreen(
             )
         }
 
+}
+
+
+@Composable
+fun ConnectivityBanners() {
+    val context = LocalContext.current
+    var isWifiEnabled by remember { mutableStateOf(checkWifiEnabled(context)) }
+    var isBluetoothEnabled by remember { mutableStateOf(checkBluetoothEnabled()) }
+
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == WifiManager.WIFI_STATE_CHANGED_ACTION) {
+                    isWifiEnabled = checkWifiEnabled(context)
+                }
+                if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                    isBluetoothEnabled = checkBluetoothEnabled()
+                }
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(WifiManager.WIFI_STATE_CHANGED_ACTION)
+            addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+        }
+        context.registerReceiver(receiver, filter)
+        onDispose {
+            context.unregisterReceiver(receiver)
+        }
+    }
+
+    if (!isWifiEnabled) {
+        ConnectivityBanner(
+            title = "Wi-Fi is Off",
+            description = "Turn on Wi-Fi to connect to SafeLink hotspot.",
+            icon = Icons.Default.WifiOff,
+            actionLabel = "Settings",
+            onAction = { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) }
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+
+    if (!isBluetoothEnabled) {
+        ConnectivityBanner(
+            title = "Bluetooth is Off",
+            description = "Turn on Bluetooth for offline proximity control.",
+            icon = Icons.Default.BluetoothDisabled,
+            actionLabel = "Settings",
+            onAction = { context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun ConnectivityBanner(
+    title: String,
+    description: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    actionLabel: String,
+    onAction: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MutedRed.copy(alpha = 0.1f)),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MutedRed,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MutedRed
+                )
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = onAction,
+                colors = ButtonDefaults.buttonColors(containerColor = MutedRed),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(actionLabel, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+private fun checkWifiEnabled(context: Context?): Boolean {
+    if (context == null) return false
+    val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+    return wifiManager?.isWifiEnabled == true
+}
+
+@SuppressLint("MissingPermission")
+private fun checkBluetoothEnabled(): Boolean {
+    val adapter = BluetoothAdapter.getDefaultAdapter()
+    return adapter?.isEnabled == true
 }
