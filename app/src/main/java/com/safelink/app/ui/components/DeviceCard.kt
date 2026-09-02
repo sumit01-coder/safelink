@@ -38,7 +38,8 @@ fun DeviceCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     onRelayClick: (Relay) -> Unit,
-    onRelayLongClick: ((Relay) -> Unit)? = null
+    onRelayLongClick: ((Relay) -> Unit)? = null,
+    onTimerClick: ((Relay) -> Unit)? = null
 ) {
     Card(
         modifier = modifier

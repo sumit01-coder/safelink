@@ -36,7 +36,7 @@ static const char* AP_PASS      = "safelink123";     // Hotspot password (min 8 
 static const char* PAIRING_KEY  = "123456";          // Must match the Android App
 static const char* DEVICE_NAME  = "Xiao ESP32S3 Hub";
 static const char* HOSTNAME     = "safelink";        // Access via safelink.local
-static const char* FIRMWARE_VER = "1.6.1";
+static const char* FIRMWARE_VER = "1.7.0";
 
 // In AP mode, ESP32 always gets this fixed IP:
 static const IPAddress AP_IP(192, 168, 4, 1);
@@ -67,6 +67,8 @@ struct RelayDescriptor {
     char     name[24];
     bool     state;       // true = ON, false = OFF
     bool     isConnected; // true = physically detected, false = missing
+    uint32_t autoOnTimeMs;  // 0 = disabled, else millis() target
+    uint32_t autoOffTimeMs; // 0 = disabled, else millis() target
 };
 
 static RelayDescriptor activeRelays[MAX_RELAYS];
@@ -180,6 +182,8 @@ void setupHardware() {
             activeRelays[idx].pin   = pin;
             activeRelays[idx].state = false;
             activeRelays[idx].isConnected = true;
+            activeRelays[idx].autoOnTimeMs = 0;
+            activeRelays[idx].autoOffTimeMs = 0;
             strncpy(activeRelays[idx].name, RELAY_NAMES[idx], sizeof(activeRelays[idx].name) - 1);
             activeRelays[idx].name[sizeof(activeRelays[idx].name) - 1] = '\0';
 
@@ -334,6 +338,10 @@ void buildStatusJson(char* buf, size_t bufLen) {
         r["state"] = activeRelays[i].state;
         r["connected"] = activeRelays[i].isConnected;
         r["pinName"]   = getPinName(activeRelays[i].pin);
+        
+        uint32_t now = millis();
+        r["autoOnLeft"]  = (activeRelays[i].autoOnTimeMs > now) ? (activeRelays[i].autoOnTimeMs - now) / 1000 : 0;
+        r["autoOffLeft"] = (activeRelays[i].autoOffTimeMs > now) ? (activeRelays[i].autoOffTimeMs - now) / 1000 : 0;
     }
     serializeJson(doc, buf, bufLen);
 }
@@ -351,6 +359,35 @@ void setupHTTP() {
         res->addHeader("Cache-Control", "no-cache");
         req->send(res);
         Serial.printf("[HTTP] GET /api/status from %s\n", req->client()->remoteIP().toString().c_str());
+    });
+
+    // POST /api/relay/timer — set auto on/off timers
+    // Body params: relayIndex, autoOnDelay (sec), autoOffDelay (sec). -1 means ignore, 0 means cancel.
+    server.on("/api/relay/timer", HTTP_POST, [](AsyncWebServerRequest* req) {
+        if (!req->hasParam("relayIndex", true)) {
+            req->send(400, "application/json", "{"error":"Missing relayIndex"}");
+            return;
+        }
+        int idx = req->getParam("relayIndex", true)->value().toInt();
+        if (idx < 0 || idx >= activeRelayCount) {
+            req->send(400, "application/json", "{"error":"Relay not found"}");
+            return;
+        }
+
+        uint32_t now = millis();
+        
+        if (req->hasParam("autoOnDelay", true)) {
+            long delaySec = req->getParam("autoOnDelay", true)->value().toInt();
+            if (delaySec > 0) activeRelays[idx].autoOnTimeMs = now + (delaySec * 1000);
+            else if (delaySec == 0) activeRelays[idx].autoOnTimeMs = 0;
+        }
+        if (req->hasParam("autoOffDelay", true)) {
+            long delaySec = req->getParam("autoOffDelay", true)->value().toInt();
+            if (delaySec > 0) activeRelays[idx].autoOffTimeMs = now + (delaySec * 1000);
+            else if (delaySec == 0) activeRelays[idx].autoOffTimeMs = 0;
+        }
+
+        req->send(200, "application/json", "{"status":"ok"}");
     });
 
     // POST /api/relay/toggle — toggle relay by name or index
@@ -551,6 +588,19 @@ void loop() {
     reconnectWiFiIfNeeded();
     ArduinoOTA.handle();
     handleUdpDiscovery();
+
+    // Process Timers
+    uint32_t nowMillis = millis();
+    for (uint8_t i = 0; i < activeRelayCount; i++) {
+        if (activeRelays[i].autoOnTimeMs > 0 && nowMillis >= activeRelays[i].autoOnTimeMs) {
+            activeRelays[i].autoOnTimeMs = 0; // Reset
+            setRelay(i, true);
+        }
+        if (activeRelays[i].autoOffTimeMs > 0 && nowMillis >= activeRelays[i].autoOffTimeMs) {
+            activeRelays[i].autoOffTimeMs = 0; // Reset
+            setRelay(i, false);
+        }
+    }
 
     // Background Hot-Plug Detection: Scan pins every 10 seconds
     static uint32_t lastHardwareScan = 0;

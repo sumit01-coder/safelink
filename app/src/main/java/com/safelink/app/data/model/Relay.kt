@@ -8,5 +8,7 @@ data class Relay(
     val name: String,
     val state: Boolean,
     val connected: Boolean = true,
-    val pinName: String? = null
+    val pinName: String? = null,
+    val autoOnLeft: Long = 0,
+    val autoOffLeft: Long = 0
 )

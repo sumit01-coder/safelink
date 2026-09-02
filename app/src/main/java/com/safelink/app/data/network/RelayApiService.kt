@@ -55,6 +55,31 @@ class RelayApiService {
         }
     }
 
+    suspend fun setTimer(
+        ip: String,
+        port: Int = 80,
+        relayIndex: Int,
+        autoOnDelay: Long? = null,
+        autoOffDelay: Long? = null
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val bodyBuilder = FormBody.Builder()
+            bodyBuilder.add("relayIndex", relayIndex.toString())
+            if (autoOnDelay != null) bodyBuilder.add("autoOnDelay", autoOnDelay.toString())
+            if (autoOffDelay != null) bodyBuilder.add("autoOffDelay", autoOffDelay.toString())
+
+            val request = Request.Builder()
+                .url("http://$ip:$port/api/relay/timer")
+                .post(bodyBuilder.build())
+                .build()
+
+            val response = client.newCall(request).execute()
+            response.isSuccessful
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     /**
      * Fetches the current status of all relays on the device.
      * Returns the raw JSON string, or null on failure.

@@ -23,6 +23,9 @@ import androidx.compose.material.icons.filled.DevicesOther
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Timer
+import java.util.Calendar
+import java.util.TimeZone
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -54,9 +57,11 @@ fun HomeScreen(
     onDeviceClick: (String) -> Unit,
     onRelayClick: (SafeLinkDevice, Relay) -> Unit,
     onRelayLongClick: (SafeLinkDevice, Relay) -> Unit = { _, _ -> },
+    onSetTimer: (SafeLinkDevice, Relay, Long?, Long?) -> Unit = { _, _, _, _ -> },
     onRefresh: () -> Unit
 ) {
     val renameDialogState = remember { mutableStateOf<Pair<SafeLinkDevice, Relay>?>(null) }
+    val timerDialogState = remember { mutableStateOf<Pair<SafeLinkDevice, Relay>?>(null) }
     
     val onlineCount = uiState.devices.count { it.isOnline }
     val totalCount = uiState.devices.size
@@ -275,7 +280,8 @@ fun HomeScreen(
                         )),
                         onClick = { onDeviceClick(device.ip) },
                         onRelayClick = { relay -> onRelayClick(device, relay) },
-                        onRelayLongClick = { relay -> renameDialogState.value = Pair(device, relay) }
+                        onRelayLongClick = { relay -> renameDialogState.value = Pair(device, relay) },
+                        onTimerClick = { relay -> timerDialogState.value = Pair(device, relay) }
                     )
                 }
             }
@@ -283,6 +289,81 @@ fun HomeScreen(
 
         item { Spacer(modifier = Modifier.height(16.dp)) }
     }
+
+        timerDialogState.value?.let { (device, relay) ->
+            var onDelayHours by remember { mutableStateOf("") }
+            var onDelayMins by remember { mutableStateOf("") }
+            var offDelayHours by remember { mutableStateOf("") }
+            var offDelayMins by remember { mutableStateOf("") }
+
+            AlertDialog(
+                onDismissRequest = { timerDialogState.value = null },
+                title = { Text("Set Timer for ${relay.name}") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Auto Turn ON (in hours & mins)", style = MaterialTheme.typography.labelMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = onDelayHours,
+                                onValueChange = { onDelayHours = it },
+                                label = { Text("Hrs") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = onDelayMins,
+                                onValueChange = { onDelayMins = it },
+                                label = { Text("Mins") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Auto Turn OFF (in hours & mins)", style = MaterialTheme.typography.labelMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = offDelayHours,
+                                onValueChange = { offDelayHours = it },
+                                label = { Text("Hrs") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = offDelayMins,
+                                onValueChange = { offDelayMins = it },
+                                label = { Text("Mins") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val onH = onDelayHours.toLongOrNull() ?: 0L
+                        val onM = onDelayMins.toLongOrNull() ?: 0L
+                        val offH = offDelayHours.toLongOrNull() ?: 0L
+                        val offM = offDelayMins.toLongOrNull() ?: 0L
+                        
+                        val onTotalSecs = (onH * 3600) + (onM * 60)
+                        val offTotalSecs = (offH * 3600) + (offM * 60)
+                        
+                        // Pass to callback
+                        onSetTimer(
+                            device, relay, 
+                            if(onTotalSecs > 0) onTotalSecs else if (onDelayHours == "0" && onDelayMins == "0") 0L else null,
+                            if(offTotalSecs > 0) offTotalSecs else if (offDelayHours == "0" && offDelayMins == "0") 0L else null
+                        )
+                        timerDialogState.value = null
+                    }) {
+                        Text("Set Timer")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { timerDialogState.value = null }) { Text("Cancel") }
+                }
+            )
+        }
 
         renameDialogState.value?.let { (device, relay) ->
             var newName by remember { mutableStateOf(relay.name) }

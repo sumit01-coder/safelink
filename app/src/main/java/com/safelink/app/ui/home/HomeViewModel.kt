@@ -247,6 +247,24 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setTimer(device: SafeLinkDevice, relay: Relay, autoOnDelaySec: Long?, autoOffDelaySec: Long?) {
+        viewModelScope.launch {
+            val success = relayApiService.setTimer(
+                ip = device.ip,
+                port = device.port,
+                relayIndex = relay.id - 1,
+                autoOnDelay = autoOnDelaySec,
+                autoOffDelay = autoOffDelaySec
+            )
+            if (!success) {
+                _uiState.update { it.copy(error = "Failed to set timer. Ensure phone is connected to device Wi-Fi.") }
+            } else {
+                // Optimistically fetch status immediately to reflect timer
+                discoverDevices(device.deviceName ?: "") // this re-fetches
+            }
+        }
+    }
+
     fun dismissError() {
         _uiState.update { it.copy(error = null) }
     }
