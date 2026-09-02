@@ -76,8 +76,9 @@ fun HomeScreen(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         if (result.values.all { it }) {
-            // Permissions granted, trigger scan if needed
-            if (!uiState.isDiscovering) {
+            // Permissions granted, trigger scan only if device list is empty
+            // This prevents losing state when navigating back from other tabs
+            if (!uiState.isDiscovering && uiState.devices.isEmpty()) {
                 onRefresh()
             }
         }

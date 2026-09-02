@@ -288,10 +288,20 @@ fun RelayQuickControl(
                     maxLines = 1
                 )
                 Spacer(modifier = Modifier.height(2.dp))
+                val timerText = if (relay.autoOnLeft > 0) {
+                    val m = relay.autoOnLeft / 60
+                    val s = relay.autoOnLeft % 60
+                    " (ON in ${m}m ${s}s)"
+                } else if (relay.autoOffLeft > 0) {
+                    val m = relay.autoOffLeft / 60
+                    val s = relay.autoOffLeft % 60
+                    " (OFF in ${m}m ${s}s)"
+                } else ""
+
                 Text(
-                    text = if (isMainAction) "ON" else "OFF",
+                    text = if (isMainAction) "ON$timerText" else "OFF$timerText",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold),
-                    color = Color.White.copy(alpha = 0.5f),
+                    color = if (timerText.isNotEmpty()) MintGreen else Color.White.copy(alpha = 0.5f),
                     fontSize = 10.sp
                 )
                 
