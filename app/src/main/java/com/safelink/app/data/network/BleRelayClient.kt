@@ -73,15 +73,16 @@ class BleRelayClient(private val context: Context) {
                                     }
                                     
                                     characteristic.value = json.toString().toByteArray(Charsets.UTF_8)
-                                    characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                                    characteristic.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
                                     
                                     val writeSuccess = g.writeCharacteristic(characteristic)
                                     Log.d("BleRelayClient", "Write characteristic initiated: $writeSuccess")
                                     
-                                    if (!isResumed) {
-                                        isResumed = true
-                                        // We consider it successful if the write was successfully initiated
-                                        continuation.resume(writeSuccess)
+                                    if (!writeSuccess) {
+                                        if (!isResumed) {
+                                            isResumed = true
+                                            continuation.resume(false)
+                                        }
                                     }
                                 } else {
                                     Log.e("BleRelayClient", "Command characteristic not found!")
@@ -95,6 +96,14 @@ class BleRelayClient(private val context: Context) {
                                     isResumed = true
                                     continuation.resume(false)
                                 }
+                            }
+                        }
+
+                        override fun onCharacteristicWrite(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+                            Log.d("BleRelayClient", "Characteristic write status: $status")
+                            if (!isResumed) {
+                                isResumed = true
+                                continuation.resume(status == BluetoothGatt.GATT_SUCCESS)
                             }
                         }
                     }

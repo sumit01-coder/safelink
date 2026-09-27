@@ -25,6 +25,7 @@
 #include <ArduinoOTA.h>
 #include <NimBLEDevice.h>
 #include <Preferences.h>
+#include <Update.h>
 
 Preferences preferences;
 
@@ -428,6 +429,40 @@ void setupHTTP() {
         req->send(200, "application/json", buf);
     });
 
+    // POST /api/update — Web OTA Firmware Update from Android App
+    server.on("/api/update", HTTP_POST, [](AsyncWebServerRequest* req) {
+        AsyncWebServerResponse* res = req->beginResponse(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+        res->addHeader("Connection", "close");
+        req->send(res);
+    }, [](AsyncWebServerRequest* req, String filename, size_t index, uint8_t* data, size_t len, bool final) {
+        if (!index) {
+            Serial.printf("[OTA] Update Start: %s\n", filename.c_str());
+            if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+                Update.printError(Serial);
+            }
+        }
+        if (!Update.hasError()) {
+            if (Update.write(data, len) != len) {
+                Update.printError(Serial);
+            }
+        }
+        if (final) {
+            if (Update.end(true)) {
+                Serial.printf("[OTA] Update Success: %u bytes\nRebooting...\n", index + len);
+                // We don't restart immediately here to allow the HTTP response to be sent
+            } else {
+                Update.printError(Serial);
+            }
+        }
+    });
+
+    // Handle restart after update completes (so HTTP response goes through)
+    server.on("/api/update/reboot", HTTP_POST, [](AsyncWebServerRequest* req) {
+        req->send(200, "application/json", "{\"status\":\"rebooting\"}");
+        delay(500);
+        ESP.restart();
+    });
+
     // CORS preflight for potential web dashboard
     server.onNotFound([](AsyncWebServerRequest* req) {
         if (req->method() == HTTP_OPTIONS) {
@@ -470,7 +505,7 @@ void handleUdpDiscovery() {
     if (strcmp(packetBuffer, expectedPayload) == 0) {
         Serial.printf("[UDP] Valid discovery from %s\n", udp.remoteIP().toString().c_str());
 
-        char responseBuf[512];
+        char responseBuf[1536];
         buildStatusJson(responseBuf, sizeof(responseBuf));
 
         udp.beginPacket(udp.remoteIP(), udp.remotePort());
@@ -496,9 +531,9 @@ class BleCommandCallback : public NimBLECharacteristicCallbacks {
             StaticJsonDocument<128> doc;
             DeserializationError error = deserializeJson(doc, value);
             if (!error) {
-                if (doc.containsKey("relayIndex") && doc.containsKey("state")) {
+                if (doc.containsKey("relayIndex")) {
                     int idx = doc["relayIndex"];
-                    bool state = doc["state"];
+                    bool state = doc.containsKey("state") ? (bool)doc["state"] : !activeRelays[idx].state;
                     setRelay(idx, state);
                 }
             } else {

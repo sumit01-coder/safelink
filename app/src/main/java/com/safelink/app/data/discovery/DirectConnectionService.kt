@@ -55,14 +55,12 @@ class DirectConnectionService(private val context: Context) {
     suspend fun tryDirectConnect(pairingKey: String): SafeLinkDevice? = withContext(Dispatchers.IO) {
         lastError = null
         val wifiNetwork = boundNetwork ?: getWifiNetwork()
-        if (wifiNetwork != null) {
-            val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            connectivityManager.bindProcessToNetwork(wifiNetwork)
-        }
 
         var socket: DatagramSocket? = null
         try {
             socket = DatagramSocket()
+            // FIX: bind only this socket to Wi-Fi — avoids the process-wide race condition
+            // that bindProcessToNetwork() caused when multiple coroutines ran concurrently.
             if (wifiNetwork != null) {
                 wifiNetwork.bindSocket(socket)
             }
@@ -72,19 +70,14 @@ class DirectConnectionService(private val context: Context) {
             // Unicast directly to the ESP32 to bypass broadcast ENETUNREACH routing errors
             val targetAddress = InetAddress.getByName("192.168.4.1")
             val packet = DatagramPacket(message, message.size, targetAddress, 8888)
-            
-            // Send UDP request
+
             socket.send(packet)
 
-            // Wait for response
             val receiveBuffer = ByteArray(1024)
             val receivePacket = DatagramPacket(receiveBuffer, receiveBuffer.size)
-            
             socket.receive(receivePacket)
-            
+
             val responseText = String(receivePacket.data, 0, receivePacket.length)
-            
-            // The ESP32 returns the same JSON blob via UDP as it does via HTTP
             return@withContext json.decodeFromString<SafeLinkDevice>(responseText).copy(ip = "192.168.4.1")
 
         } catch (e: SocketTimeoutException) {
@@ -95,15 +88,10 @@ class DirectConnectionService(private val context: Context) {
             Log.e("DirectConnect", "UDP Error: ${e.message}")
         } finally {
             socket?.close()
-            if (wifiNetwork != null) {
-                val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-                connectivityManager.bindProcessToNetwork(null)
-            }
         }
-        
-        // Fallback to direct HTTP if UDP fails
-        val fallbackIp = "192.168.4.1"
-        return@withContext fetchDevice(fallbackIp, wifiNetwork)
+
+        // Fallback: HTTP GET /api/status if UDP timed out
+        return@withContext fetchDevice("192.168.4.1", wifiNetwork)
     }
 
     /** Public: fetch device status from a known IP via the Wi-Fi network. */
@@ -125,19 +113,21 @@ class DirectConnectionService(private val context: Context) {
     }
 
     private fun fetchDevice(ip: String, wifiNetwork: Network?): SafeLinkDevice? {
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         return try {
-            if (wifiNetwork != null) {
-                connectivityManager.bindProcessToNetwork(wifiNetwork)
-            }
-            
+            // Open HTTP connection and optionally bind its underlying socket to the Wi-Fi network.
+            // We use openConnection on the network's socket factory directly to avoid the
+            // process-wide bindProcessToNetwork() race condition.
             val url = URL("http://$ip:80/api/status")
-            val connection = url.openConnection() as HttpURLConnection
-            
+            val connection = if (wifiNetwork != null) {
+                wifiNetwork.openConnection(url) as HttpURLConnection
+            } else {
+                url.openConnection() as HttpURLConnection
+            }
+
             connection.connectTimeout = 3000
-            connection.readTimeout = 5000
-            connection.requestMethod = "GET"
-            
+            connection.readTimeout    = 5000
+            connection.requestMethod  = "GET"
+
             val responseCode = connection.responseCode
             if (responseCode == HttpURLConnection.HTTP_OK) {
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
@@ -151,10 +141,6 @@ class DirectConnectionService(private val context: Context) {
             lastError = e.javaClass.simpleName + ": " + e.message
             Log.e("DirectConnect", "Exception fetching from $ip: ${e.message}")
             null
-        } finally {
-            if (wifiNetwork != null) {
-                connectivityManager.bindProcessToNetwork(null)
-            }
         }
     }
 }

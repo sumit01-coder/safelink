@@ -27,6 +27,13 @@ data class ReleaseInfo(
     val isNewer: Boolean
 )
 
+data class FirmwareReleaseInfo(
+    val firmwareVersion: String,
+    val downloadUrl: String,
+    val releaseNotes: String,
+    val isNewer: Boolean
+)
+
 sealed class DownloadState {
     object Idle : DownloadState()
     data class Downloading(val progress: Int) : DownloadState()  // 0-100
@@ -45,6 +52,8 @@ class AppUpdateService(private val context: Context) {
         private const val GITHUB_REPO   = "sumit01-coder/safelink"
         private const val RELEASES_API  = "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
         private const val APK_FILE_NAME = "safelink-update.apk"
+        private const val FW_FILE_NAME  = "firmware_latest.bin"
+        private const val FW_PREV_NAME  = "firmware_previous.bin"
     }
 
     /**
@@ -130,8 +139,11 @@ class AppUpdateService(private val context: Context) {
     fun downloadUpdate(url: String): Flow<DownloadState> = flow {
         emit(DownloadState.Downloading(0))
         try {
+            // FIX: use the internet-bound client so downloads succeed even when the phone
+            // is connected to the SafeLink AP hotspot (which has no internet access).
+            val internetClient = getInternetClient()
             val request  = Request.Builder().url(url).build()
-            val response = client.newCall(request).execute()
+            val response = internetClient.newCall(request).execute()
 
             if (!response.isSuccessful) {
                 emit(DownloadState.Error("Download failed: HTTP ${response.code}"))
@@ -183,6 +195,146 @@ class AppUpdateService(private val context: Context) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Firmware Update (ESP32) 
+    // ─────────────────────────────────────────────────────────────────
+
+    suspend fun checkFirmwareUpdate(currentEspVersion: String): FirmwareReleaseInfo? = withContext(Dispatchers.IO) {
+        try {
+            val internetClient = getInternetClient()
+            val request = Request.Builder()
+                .url(RELEASES_API)
+                .header("Accept", "application/vnd.github+json")
+                .build()
+
+            val response = internetClient.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext null
+
+            val body = response.body?.string() ?: return@withContext null
+            val json = JSONObject(body)
+
+            val tagName = json.getString("tag_name")
+            val cleanTag = tagName.trimStart('v')
+            val notes    = json.optString("body", "Firmware update.")
+            val assets   = json.getJSONArray("assets")
+
+            var fwUrl = ""
+            for (i in 0 until assets.length()) {
+                val asset = assets.getJSONObject(i)
+                val name  = asset.getString("name")
+                if (name.endsWith(".bin") && name.contains("firmware")) {
+                    fwUrl = asset.getString("browser_download_url")
+                    break
+                }
+            }
+
+            if (fwUrl.isEmpty()) return@withContext null
+
+            val isNewer = isVersionNewer(cleanTag, currentEspVersion)
+
+            FirmwareReleaseInfo(
+                firmwareVersion = cleanTag,
+                downloadUrl     = fwUrl,
+                releaseNotes    = notes,
+                isNewer         = isNewer
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun downloadFirmware(url: String): Flow<DownloadState> = flow {
+        emit(DownloadState.Downloading(0))
+        try {
+            val internetClient = getInternetClient()
+            val request  = Request.Builder().url(url).build()
+            val response = internetClient.newCall(request).execute()
+
+            if (!response.isSuccessful) {
+                emit(DownloadState.Error("Firmware download failed: HTTP ${response.code}"))
+                return@flow
+            }
+
+            val body = response.body ?: run {
+                emit(DownloadState.Error("Empty response body"))
+                return@flow
+            }
+            val contentLength = body.contentLength()
+
+            val updateDir = File(context.cacheDir, "firmware").also { it.mkdirs() }
+            val fwFile    = File(updateDir, FW_FILE_NAME)
+            val fwPrev    = File(updateDir, FW_PREV_NAME)
+
+            // Keep previous firmware for rollback
+            if (fwFile.exists()) {
+                if (fwPrev.exists()) fwPrev.delete()
+                fwFile.renameTo(fwPrev)
+            }
+
+            var bytesRead = 0L
+            body.byteStream().use { input ->
+                fwFile.outputStream().use { output ->
+                    val buffer = ByteArray(8 * 1024)
+                    var bytes: Int
+                    while (input.read(buffer).also { bytes = it } != -1) {
+                        output.write(buffer, 0, bytes)
+                        bytesRead += bytes
+                        if (contentLength > 0) {
+                            val progress = (bytesRead * 100 / contentLength).toInt()
+                            emit(DownloadState.Downloading(progress))
+                        }
+                    }
+                }
+            }
+            emit(DownloadState.Done(fwFile))
+        } catch (e: Exception) {
+            emit(DownloadState.Error(e.message ?: "Unknown error"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    fun flashFirmware(ip: String, usePrevious: Boolean = false): Flow<DownloadState> = flow {
+        emit(DownloadState.Downloading(0))
+        try {
+            val updateDir = File(context.cacheDir, "firmware")
+            val targetFile = if (usePrevious) File(updateDir, FW_PREV_NAME) else File(updateDir, FW_FILE_NAME)
+
+            if (!targetFile.exists()) {
+                emit(DownloadState.Error("Firmware file not found on device."))
+                return@flow
+            }
+
+            // We must use the Wi-Fi bound client or standard client to reach the ESP32 (no internet needed)
+            val requestBody = okhttp3.MultipartBody.Builder()
+                .setType(okhttp3.MultipartBody.FORM)
+                .addFormDataPart("update", targetFile.name,
+                    okhttp3.RequestBody.create(okhttp3.MediaType.parse("application/octet-stream"), targetFile))
+                .build()
+
+            val request = Request.Builder()
+                .url("http://$ip/api/update")
+                .post(requestBody)
+                .build()
+
+            // Just use the default client which relies on the system routing (or we could use the bound Wi-Fi socket, 
+            // but the system route usually prefers the connected Wi-Fi for local IPs)
+            val response = client.newCall(request).execute()
+            
+            if (response.isSuccessful) {
+                emit(DownloadState.Downloading(100))
+                emit(DownloadState.Done(targetFile))
+            } else {
+                emit(DownloadState.Error("Flashing failed: HTTP ${response.code}"))
+            }
+
+        } catch (e: Exception) {
+            emit(DownloadState.Error("Upload failed: ${e.message}"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    fun hasRollbackAvailable(): Boolean {
+        return File(context.cacheDir, "firmware/$FW_PREV_NAME").exists()
     }
 
     /**

@@ -261,6 +261,8 @@ fun MainScreen(updateViewModel: UpdateViewModel) {
                         onRelayClick = { device, relay -> homeViewModel.toggleRelay(device, relay) },
                         onRelayLongClick = { device, relay -> homeViewModel.renameRelay(device, relay.id, relay.name) },
                         onSetTimer = { device, relay, onDelay, offDelay -> homeViewModel.setTimer(device, relay, onDelay, offDelay) },
+                        onUpdateFirmware = { device -> homeViewModel.startFirmwareUpdate(device) },
+                        onRollbackFirmware = { device -> homeViewModel.rollbackFirmware(device) },
                         onRefresh = { homeViewModel.discoverDevices(settingsState.pairingKey) }
                     )
                 }

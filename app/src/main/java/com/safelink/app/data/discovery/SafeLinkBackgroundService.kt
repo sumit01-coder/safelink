@@ -19,6 +19,9 @@ import android.os.ParcelUuid
 import androidx.core.app.NotificationCompat
 import com.safelink.app.MainActivity
 import com.safelink.app.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 @SuppressLint("MissingPermission")
@@ -27,16 +30,18 @@ class SafeLinkBackgroundService : Service() {
 
     private val CHANNEL_ID = "SafeLinkForegroundServiceChannel"
     private val NOTIFICATION_ID = 1
-    
+
     private val ALERT_CHANNEL_ID = "SafeLinkAlertChannel"
     private val ALERT_NOTIFICATION_ID = 2
-    
+
     private var isScanning = false
     private val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
     private val scanner = bluetoothAdapter?.bluetoothLeScanner
     private val safeLinkServiceUuid = ParcelUuid(UUID.fromString("a07498ca-1088-4361-9c3a-23d9a101fcc4"))
 
     private var lastFoundTime = 0L
+    // Pairing key loaded from DataStore — only devices advertising this key trigger notifications
+    private var currentPairingKey: String = "123456"
 
     override fun onCreate() {
         super.onCreate()
@@ -44,26 +49,28 @@ class SafeLinkBackgroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Load current pairing key from DataStore before starting scan
+        val settingsRepo = (application as com.safelink.app.SafeLinkApplication).settingsRepository
+        CoroutineScope(Dispatchers.IO).launch {
+            settingsRepo.settingsFlow.collect { state ->
+                currentPairingKey = state.pairingKey
+            }
+        }
+
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            notificationIntent,
-            PendingIntent.FLAG_IMMUTABLE
+            this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("SafeLink Background Scan")
-            .setContentText("Scanning for nearby devices...")
+            .setContentText("Scanning for nearby devices…")
             .setSmallIcon(R.mipmap.ic_launcher_round)
             .setContentIntent(pendingIntent)
             .build()
 
         startForeground(NOTIFICATION_ID, notification)
-        
         startBleScan()
-
-        // If the service is killed, restart it
         return START_STICKY
     }
 
@@ -104,10 +111,18 @@ class SafeLinkBackgroundService : Service() {
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
-            result?.scanRecord?.let {
+            result?.scanRecord?.let { record ->
+                // Validate pairing key from BLE manufacturer data (ID 0xFFFF)
+                // Bytes 0-3 = IP address (LE), bytes 4+ = pairing key string
+                val mData = record.getManufacturerSpecificData(0xFFFF)
+                if (mData != null && mData.size > 4) {
+                    val receivedKey = String(mData.sliceArray(4 until mData.size))
+                    if (receivedKey != currentPairingKey) return  // Not our device
+                }
+
                 val now = System.currentTimeMillis()
-                // Only trigger the "Found!" notification once every 60 seconds at most
-                if (now - lastFoundTime > 60000) {
+                // Throttle "Found!" notification to once every 60 seconds at most
+                if (now - lastFoundTime > 60_000L) {
                     lastFoundTime = now
                     updateNotification("SafeLink Connected", "Your device is nearby and ready!")
                 }
