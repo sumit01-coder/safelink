@@ -13,8 +13,8 @@ android {
         applicationId = "com.safelink.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 46
-        versionName = "1.9.12"
+        versionCode = 47
+        versionName = "1.9.13"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

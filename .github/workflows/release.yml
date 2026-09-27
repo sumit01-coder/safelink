@@ -61,7 +61,18 @@ jobs:
           mv app/build/outputs/apk/debug/app-debug.apk $APK_NAME
           
           # Move and rename the firmware
-          cp firmware/xiao_esp32s3/.pio/build/xiao_esp32s3/firmware.bin firmware_latest.bin
+          if [ -f "firmware/xiao_esp32s3/.pio/build/seeed_xiao_esp32s3/firmware.bin" ]; then
+            cp firmware/xiao_esp32s3/.pio/build/seeed_xiao_esp32s3/firmware.bin firmware_latest.bin
+          else
+            echo "Direct path not found, searching in .pio/build..."
+            find firmware/xiao_esp32s3/.pio/build -name "firmware.bin" -exec cp {} firmware_latest.bin \;
+          fi
+
+          if [ ! -f "firmware_latest.bin" ]; then
+            echo "Error: firmware_latest.bin was not created!"
+            ls -laR firmware/xiao_esp32s3/.pio/build || true
+            exit 1
+          fi
           
           echo "apk_name=$APK_NAME" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
