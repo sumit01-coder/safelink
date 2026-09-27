@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.asRequestBody
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -309,7 +311,7 @@ class AppUpdateService(private val context: Context) {
             val requestBody = okhttp3.MultipartBody.Builder()
                 .setType(okhttp3.MultipartBody.FORM)
                 .addFormDataPart("update", targetFile.name,
-                    okhttp3.RequestBody.create(okhttp3.MediaType.parse("application/octet-stream"), targetFile))
+                    targetFile.asRequestBody("application/octet-stream".toMediaTypeOrNull()))
                 .build()
 
             val request = Request.Builder()
