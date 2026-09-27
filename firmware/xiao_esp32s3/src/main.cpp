@@ -37,7 +37,7 @@ static const char* AP_PASS      = "safelink123";     // Hotspot password (min 8 
 static const char* PAIRING_KEY  = "123456";          // Must match the Android App
 static const char* DEVICE_NAME  = "Xiao ESP32S3 Hub";
 static const char* HOSTNAME     = "safelink";        // Access via safelink.local
-static const char* FIRMWARE_VER = "1.7.2";
+static const char* FIRMWARE_VER = "1.7.3";
 
 // In AP mode, ESP32 always gets this fixed IP:
 static const IPAddress AP_IP(192, 168, 4, 1);
@@ -584,7 +584,8 @@ void setupBLE() {
     mData += PAIRING_KEY;
 
     pAdvertising->setManufacturerData(mData);
-    pAdvertising->setScanResponseData(NimBLEAdvertisementData());
+    NimBLEAdvertisementData scanResponse;
+    pAdvertising->setScanResponseData(scanResponse);
     
     pAdvertising->setMinInterval(0x20);
     pAdvertising->setMaxInterval(0x40);
