@@ -31,7 +31,26 @@ jobs:
           chmod +x ./gradlew
           ./gradlew assembleDebug
         
-      - name: Rename APK
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: ${{ runner.os }}-pio
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio
+
+      - name: Build Firmware
+        run: |
+          cd firmware/xiao_esp32s3
+          pio run
+
+      - name: Rename APK and Firmware
         id: rename
         run: |
           # If triggered by a tag, use the tag name. Otherwise, default to 'latest'
@@ -41,6 +60,9 @@ jobs:
           # Move and rename the APK to the root workspace
           mv app/build/outputs/apk/debug/app-debug.apk $APK_NAME
           
+          # Move and rename the firmware
+          cp firmware/xiao_esp32s3/.pio/build/xiao_esp32s3/firmware.bin firmware_latest.bin
+          
           echo "apk_name=$APK_NAME" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
@@ -49,6 +71,8 @@ jobs:
         with:
           name: SafeLink ${{ steps.rename.outputs.tag_name }}
           body: "Automated release for SafeLink ${{ steps.rename.outputs.tag_name }}."
-          files: ${{ steps.rename.outputs.apk_name }}
+          files: |
+            ${{ steps.rename.outputs.apk_name }}
+            firmware_latest.bin
           # Automatically mark as latest
           make_latest: true
